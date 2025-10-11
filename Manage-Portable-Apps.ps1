@@ -582,36 +582,80 @@ function Show-ManageUI {
         }
     }
 
+    function Update-DetailsTextBox {
+        param(
+            [System.Windows.Forms.TextBox] $txt,
+            [object] $w
+        )
+
+        if (-not $w) {
+            $txt.Text = ""
+            return
+        }
+
+        $sb = [System.Text.StringBuilder]::new()
+
+        # Header line depending on status
+        if ($w.HasShortcut) {
+            $sb.AppendLine("App Name: [Already On StartMenu]")
+        }
+        elseif ($w.IsInstalled) {
+            $sb.AppendLine("App Name: [Already Installed]")
+        }
+        else {
+            $sb.AppendLine("App Name:")
+        }
+        $sb.AppendLine($w.appName)
+        $sb.AppendLine()
+
+        # Version / comparison lines
+        if ($w.PSObject.Properties.Match("appVersion").Count) {
+            if ($w.HasShortcut) {
+                $sb.AppendLine("StartMenu -> Portable Version:")
+                $sb.AppendLine(" -------- -> $($w.appVersion)")
+            }
+            elseif ($w.IsInstalled) {
+                $sb.AppendLine("Installed -> Portable Version:")
+                $sb.AppendLine("$($w.InstalledVersion) -> $($w.appVersion)")
+            }
+            else {
+                $sb.AppendLine("Version:")
+                $sb.AppendLine($w.appVersion)
+            }
+        }
+        $sb.AppendLine()
+
+        # Group
+        $sb.AppendLine("Group: " + $(if ($w.appGroup) { $w.appGroup } else { "<UNGROUPED>" }))
+        $sb.AppendLine()
+
+        # StartMenu folder name
+        $sb.AppendLine("StartMenu Folder: " + $w.appStartMenuFolderName)
+        $sb.AppendLine()
+
+        # Description, replacing literal "\n" into actual new lines
+        $desc = $w.appDescription -replace '\\n', [Environment]::NewLine
+        $sb.AppendLine("Description:`n$desc")
+
+        $txt.Text = $sb.ToString().TrimEnd()
+    }
+
     function Add-EventHandlers {
-        param($form, $tree, $txt, $btnSelectAll, $btnUnselectAll, $btnInvert, $btnExit)
+        param(
+            [System.Windows.Forms.Form] $form,
+            [System.Windows.Forms.TreeView] $tree,
+            [System.Windows.Forms.TextBox] $txt,
+            [System.Windows.Forms.Button] $btnSelectAll,
+            [System.Windows.Forms.Button] $btnUnselectAll,
+            [System.Windows.Forms.Button] $btnInvert,
+            [System.Windows.Forms.Button] $btnExit
+        )
 
         $tree.Add_AfterSelect({
                 param($sender, $e)
                 $node = $e.Node
-                if ($node.Tag) {
-                    $w = $node.Tag
-                    $sb = [System.Text.StringBuilder]::new()
-                    $sb.AppendLine("App Name: " + $(if ($w.IsInstalled) { "[Already Installed]" } else { "" }))
-                    $sb.AppendLine($w.appName)
-                    $sb.AppendLine()
-                    if ($w.PSObject.Properties.Match("appVersion").Count) {
-                        if ($w.IsInstalled) {
-                            $sb.AppendLine("Installed -> Portable Version:")
-                            $sb.AppendLine("$($w.InstalledVersion) -> $($w.appVersion)")
-                        }
-                        else {
-                            $sb.AppendLine("Version:")
-                            $sb.AppendLine($w.appVersion)
-                        }
-                    }
-                    $sb.AppendLine()
-                    $sb.AppendLine("Group: " + $(if ($w.appGroup) { $w.appGroup } else { "<UNGROUPED>" }))
-                    $sb.AppendLine()
-                    $sb.AppendLine("StartMenu Folder: " + $w.appStartMenuFolderName)
-                    $sb.AppendLine()
-                    $desc = $w.appDescription -replace '\\n', [Environment]::NewLine
-                    $sb.AppendLine("Description:`n$desc")
-                    $txt.Text = $sb.ToString().TrimEnd()
+                if ($node -and $node.Tag) {
+                    Update-DetailsTextBox -txt $txt -w $node.Tag
                 }
                 else {
                     $txt.Text = ""
@@ -620,7 +664,9 @@ function Show-ManageUI {
 
         $tree.Add_AfterCheck({
                 if ($_.Action -eq [System.Windows.Forms.TreeViewAction]::ByMouse) {
-                    foreach ($c in $_.Node.Nodes) { $c.Checked = $_.Node.Checked }
+                    foreach ($c in $_.Node.Nodes) {
+                        $c.Checked = $_.Node.Checked
+                    }
                 }
             })
 
@@ -630,6 +676,7 @@ function Show-ManageUI {
 
         $btnExit.Add_Click({ $form.Close() })
     }
+
 
     # endregion
 
