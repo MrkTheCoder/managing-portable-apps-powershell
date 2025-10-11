@@ -378,9 +378,11 @@ function Get-ScalarInt {
 }
 
 function Show-ManageUI {
-    param (
-        [array] $appWrappers
+    param(
+        [Parameter(Mandatory)] $appWrappers,
+        [Parameter(Mandatory)] $createdShortcuts
     )
+
 
     # region ─── Helper Functions ──────────────────────────────────────────────
 
@@ -461,6 +463,28 @@ function Show-ManageUI {
         return $txt
     }
 
+
+    function Set-AppNodeIcon {
+        param(
+            [System.Windows.Forms.TreeNode] $Node,
+            [object] $App,
+            [System.Windows.Forms.ImageList] $ImgList
+        )
+
+        if ($App.HasShortcut -and $ImgList.Images.ContainsKey('startMenu')) {
+            $Node.ImageKey = 'startMenu'
+            $Node.SelectedImageKey = 'startMenu'
+        }
+        elseif ($App.IsInstalled -and $ImgList.Images.ContainsKey('installed')) {
+            $Node.ImageKey = 'installed'
+            $Node.SelectedImageKey = 'installed'
+        }
+        elseif ($ImgList.Images.ContainsKey('portable')) {
+            $Node.ImageKey = 'portable'
+            $Node.SelectedImageKey = 'portable'
+        }
+    }
+
     function Populate-Tree {
         param($tree, $appWrappers, $imgList)
 
@@ -473,10 +497,27 @@ function Show-ManageUI {
             "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
         )
 
+        foreach ($w in $appWrappers) {
+            $match = $createdShortcuts | Where-Object { $_.ShortcutAppName -eq $w.appName }
+
+            if ($match) {
+                $w | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $true -Force
+                $w | Add-Member -NotePropertyName ShortcutUserType -NotePropertyValue $match.ShortcutUserType -Force
+                $w | Add-Member -NotePropertyName ShortcutAppVersion -NotePropertyValue $match.ShortcutAppVersion -Force
+            }
+            else {
+                $w | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $false -Force
+                $w | Add-Member -NotePropertyName ShortcutUserType -NotePropertyValue $null -Force
+                $w | Add-Member -NotePropertyName ShortcutAppVersion -NotePropertyValue $null -Force
+            }
+        }
+
         foreach ($w in $sorted) {
             $w | Add-Member IsInstalled $false -Force
             $w | Add-Member InstalledVersion "" -Force
 
+
+            
             if ($w.appInstallRegistryData) {
                 foreach ($root in $uninstallRoots) {
                     $regPath = Join-Path $root $w.appInstallRegistryData
@@ -501,14 +542,7 @@ function Show-ManageUI {
                 $appNode = New-Object System.Windows.Forms.TreeNode($w.appName)
                 #Write-Host "Inspecting Group $($w): $($w | Format-List -Force)"
                 $appNode.Tag = $w
-                if ($w.IsInstalled) {
-                    $appNode.ImageKey = "installed"
-                    $appNode.SelectedImageKey = "installed"
-                }
-                else {
-                    $appNode.ImageKey = "portable"
-                    $appNode.SelectedImageKey = "portable"
-                }
+                Set-AppNodeIcon -Node $appNode -App $w -ImgList $imgList
                 $groupMap[$w.appGroup].Nodes.Add($appNode) | Out-Null
             }
             else {
@@ -521,14 +555,7 @@ function Show-ManageUI {
             $node = New-Object System.Windows.Forms.TreeNode($w.appName)
             #Write-Host "Inspecting Ungroup $($w): $($w | Format-List -Force)"
             $node.Tag = $w
-            if ($w.IsInstalled) {
-                $node.ImageKey = "installed"
-                $node.SelectedImageKey = "installed"
-            }
-            else {
-                $node.ImageKey = "portable"
-                $node.SelectedImageKey = "portable"
-            }
+            Set-AppNodeIcon -Node $node -App $w -ImgList $imgList
             $tree.Nodes.Add($node) | Out-Null
         }
 
@@ -669,7 +696,7 @@ $scriptDir = "d:\Portables"
 # -------------------------------------
 $appFiles = Get-ChildItem -Path $scriptDir -Recurse -Filter *.app -ErrorAction SilentlyContinue
 Write-Host "Total Portable Apps: '$($appFiles.Count)'"
-$appObjs = @()
+$appWrappers = @()
 foreach ($f in $appFiles) {
     $json = Load-AppFile $f.FullName
     if ($null -eq $json) {
@@ -681,12 +708,12 @@ foreach ($f in $appFiles) {
         $wrapper | Add-Member NoteProperty $prop.Name -Value $prop.Value
     }
     $wrapper | Add-Member NoteProperty "AppFilePath" -Value $f.FullName
-    $appObjs += $wrapper
+    $appWrappers += $wrapper
 }
 
-if ($appObjs.Count -eq 0) {
+if ($appWrappers.Count -eq 0) {
     [System.Windows.Forms.MessageBox]::Show("No .app files found under $scriptDir", "Error", "OK", "Error")
     exit 0
 }
 
-Show-ManageUI -appWrappers $appObjs
+Show-ManageUI -appWrappers $appWrappers -createdShortcuts $createdShortcuts
