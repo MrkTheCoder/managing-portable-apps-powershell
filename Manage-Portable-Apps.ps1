@@ -162,6 +162,65 @@ function Get-RegistryValue {
 }
 
 
+function Get-CreatedShortcuts {
+    <#
+    .SYNOPSIS
+       Find .app files in Start Menu Programs locations and build a list of shortcut metadata.
+    #>
+    [CmdletBinding()]
+    param (
+        # No parameters needed, uses environment
+    )
+
+    $list = @()
+
+    # Paths to search
+    $allUsersStart = Join-Path $env:ALLUSERSPROFILE "Microsoft\Windows\Start Menu\Programs"
+    $currentUserStart = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
+
+    $locations = @(
+        @{ Root = $allUsersStart; UserType = "AllUsers" },
+        @{ Root = $currentUserStart; UserType = "CurrentUser" }
+    )
+
+    foreach ($loc in $locations) {
+        $rootPath = $loc.Root
+        $userType = $loc.UserType
+
+        # If the folder doesn’t exist, skip
+        if (-not (Test-Path $rootPath)) {
+            continue
+        }
+
+        # Recursively find all .app files under that folder
+        $appFiles = Get-ChildItem -Path $rootPath -Recurse -Filter *.app -ErrorAction SilentlyContinue
+
+        foreach ($f in $appFiles) {
+            # The parent folder (folder containing this .app) is the ShortcutPath
+            $shortcutFolder = Split-Path -Parent $f.FullName
+
+            # Load the .app file JSON
+            $jsonObj = Load-AppFile $f.FullName
+            if ($null -eq $jsonObj) {
+                # skip if JSON parse failed
+                continue
+            }
+
+            # Create an object with needed properties
+            $obj = [PSCustomObject]@{
+                ShortcutPath       = $shortcutFolder
+                ShortcutUserType   = $userType
+                ShortcutAppName    = $jsonObj.appName
+                ShortcutAppVersion = if ($jsonObj.PSObject.Properties.Match("appVersion").Count -gt 0) { $jsonObj.appVersion } else { "" }
+            }
+
+            $list += $obj
+        }
+    }
+
+    return $list
+}
+
 # Add Win32 API for icon extraction (only add once in your script)
 if (-not ([System.Management.Automation.PSTypeName]'IconExtractor').Type) {
     Add-Type -TypeDefinition @"
@@ -594,6 +653,14 @@ function Show-ManageUI {
 
 
 # ---- Main ----
+
+# Discover created shortcuts
+$createdShortcuts = Get-CreatedShortcuts
+Write-Host "Found $($createdShortcuts.Count) created shortcuts in Start Menu folders"
+# You can optionally print them or debug:
+# foreach ($cs in $createdShortcuts) {
+#     Write-Host "[$($cs.ShortcutUserType)] $($cs.ShortcutPath) → $($cs.ShortcutAppName) v$($cs.ShortcutAppVersion)"
+# }
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 # -------------------------------------
