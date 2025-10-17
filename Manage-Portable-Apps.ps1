@@ -488,7 +488,6 @@ function Show-ManageUI {
         return $txt
     }
 
-
     function Set-AppNodeIcon {
         param(
             [System.Windows.Forms.TreeNode] $Node,
@@ -664,6 +663,30 @@ function Show-ManageUI {
 
         $txt.Text = $sb.ToString().TrimEnd()
     }
+    function Update-ParentCheckState {
+        param([System.Windows.Forms.TreeNode] $node)
+
+        # Walk upward from this node’s parent, adjusting each parent’s Checked property
+        while ($node -ne $null) {
+            $parent = $node.Parent
+            if ($null -eq $parent) { break }
+
+            # Count how many child nodes under parent are checked
+            $allChildren = $parent.Nodes
+            $countChecked = ($allChildren | Where-Object { $_.Checked }).Count
+            if ($countChecked -eq $allChildren.Count -and $allChildren.Count -gt 0) {
+                # all children checked → parent should be checked
+                $parent.Checked = $true
+            }
+            else {
+                # otherwise, parent should be unchecked
+                $parent.Checked = $false
+            }
+
+            # move up
+            $node = $parent
+        }
+    }
 
     function Add-EventHandlers {
         param(
@@ -692,12 +715,26 @@ function Show-ManageUI {
                     foreach ($c in $_.Node.Nodes) {
                         $c.Checked = $_.Node.Checked
                     }
+                    # Update parent nodes upward
+                    Update-ParentCheckState $_.Node
                 }
             })
 
-        $btnSelectAll.Add_Click({ Set-AllTreeNodesChecked $tree.Nodes $true })
-        $btnUnselectAll.Add_Click({ Set-AllTreeNodesChecked $tree.Nodes $false })
-        $btnInvert.Add_Click({ Invert-AllTreeNodesChecked $tree.Nodes })
+        $btnSelectAll.Add_Click({
+                Set-AllTreeNodesChecked $tree.Nodes $true 
+                foreach ($root in $tree.Nodes) {
+                    Update-ParentCheckState $root
+                }
+            })
+        $btnUnselectAll.Add_Click({ 
+                Set-AllTreeNodesChecked $tree.Nodes $false
+            })
+        $btnInvert.Add_Click({ 
+                Invert-AllTreeNodesChecked $tree.Nodes
+                foreach ($root in $tree.Nodes) {
+                    Update-ParentCheckState $root
+                } 
+            })
 
         $btnExit.Add_Click({ $form.Close() })
     }
