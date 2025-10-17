@@ -1,7 +1,7 @@
 # Manage-Portable-Apps.ps1
 
 $scriptName = "Manage Portable Apps"
-$scriptVersion = "v0.7.202510 Pre-Alpha"
+$scriptVersion = "v0.13.202510 Pre-Alpha"
 Write-Host "Running on PowerShell version: $($PSVersionTable.PSVersion)"
 Write-Host "Script: $scriptName $scriptVersion"
 
@@ -415,6 +415,31 @@ function Show-ManageUI {
         }
     }
 
+
+    function New-Label {
+        param($text, $x, $y)
+        # Create the filter label and dropdown (ComboBox)
+        $lblFilter = New-Object System.Windows.Forms.Label
+        $lblFilter.Text = $text
+        $lblFilter.Location = New-Object System.Drawing.Point($x, $y)
+        $lblFilter.AutoSize = $true
+        # Optionally force minimal width:
+        $size = [System.Windows.Forms.TextRenderer]::MeasureText($text, $lbl.Font)
+        $lblFilter.Size = New-Object System.Drawing.Size($size.Width, $lbl.Height)
+        return $lblFilter
+    }
+
+    function New-ComboBox {
+        param($items, $x, $y, $width, $height)
+        $cmbFilter = New-Object System.Windows.Forms.ComboBox
+        $cmbFilter.Location = New-Object System.Drawing.Point($x, $y)
+        $cmbFilter.Size = New-Object System.Drawing.Size($width, $height)
+        $cmbFilter.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+        $cmbFilter.Items.AddRange($items)
+        $cmbFilter.SelectedIndex = 0  # default to “All”
+        return $cmbFilter    
+    }
+
     function New-Button {
         param($text, $x, $y, $width, $height)
         $btn = New-Object System.Windows.Forms.Button
@@ -444,7 +469,7 @@ function Show-ManageUI {
         param($imgList)
         $tree = New-Object System.Windows.Forms.TreeView
         $tree.Location = New-Object System.Drawing.Point(10, 40)
-        $tree.Size = New-Object System.Drawing.Size(300, 380)
+        $tree.Size = New-Object System.Drawing.Size(300, 345 )
         $tree.Anchor = [System.Windows.Forms.AnchorStyles] "Top,Left,Bottom"
         $tree.CheckBoxes = $true
         $tree.ImageList = $imgList
@@ -697,13 +722,14 @@ function Show-ManageUI {
 
     $tree = New-TreeView $imgList
     $txt = New-DetailsTextBox
-    $btnSelectAll = New-Button "Select All" 10 10 80 25
-    $btnUnselectAll = New-Button "Unselect All" 100 10 80 25
-    $btnInvert = New-Button "Invert Selection" 190 10 120 25
+    $btnSelectAll = New-Button "Select All" 10 $($txt.Location.Y + $txt.Height - 25) 80 25
+    $btnUnselectAll = New-Button "Unselect All" 100 $btnSelectAll.Location.Y 80 25
+    $btnInvert = New-Button "Invert Selection" 190 $btnSelectAll.Location.Y 120 25
+    $lblFilter = New-Label "Filters" 10 10
+    $cmdFilter = New-ComboBox @("All", "Installed", "Portable on StartMenu", "Portable not used") $($lblFilter.Location.X + $lblFilter.Width + 10) 10 180 25
     $btnExit = New-Button "Exit" 0 0 80 30
     $btnExit.Anchor = [System.Windows.Forms.AnchorStyles] "Bottom,Right"
-
-    $form.Controls.AddRange(@($tree, $txt, $btnSelectAll, $btnUnselectAll, $btnInvert, $btnExit))
+    $form.Controls.AddRange(@($tree, $txt, $lblFilter, $cmdFilter, $btnSelectAll, $btnUnselectAll, $btnInvert, $btnExit))
 
     Populate-Tree $tree $appWrappers $imgList
     Add-EventHandlers $form $tree $txt $btnSelectAll $btnUnselectAll $btnInvert $btnExit
