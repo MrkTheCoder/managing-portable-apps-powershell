@@ -1,7 +1,7 @@
 # Manage-Portable-Apps.ps1
 
 $scriptName = "Manage Portable Apps"
-$scriptVersion = "v0.22.202510 Alpha"
+$scriptVersion = "v0.24.202510 Alpha"
 Write-Host "Running on PowerShell version: $($PSVersionTable.PSVersion)"
 Write-Host "Script: $scriptName $scriptVersion"
 
@@ -867,6 +867,22 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
             }
         })
 
+    $btnAbout.Add_Click({
+            [void] [System.Windows.Forms.MessageBox]::Show(
+                "This script was fully written by AIs assistant (ChatGPT + Claude.ai) and then guided, managed, and refined by me.`r`n`r`n" +
+                "Manage Portable Apps is a PowerShell utility designed to help you keep your portable applications organized and accessible. " +
+                "It scans a folder of portable apps (each identified by its own .app metadata file) and compares them against your Start Menu shortcuts. " +
+                "You can see which apps are installed, which already have shortcuts, and which are unused. " +
+                "With just a few clicks you can add or remove shortcuts and create new .app entries.`r`n`r`n" +
+                "Author: MrkTheCoder`r`n" +
+                "Version: $scriptVersion`r`n" +
+                "© 2025 MrkTheCoder – All Rights Reserved",
+                "About Manage-Portable-Apps",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Information
+            )
+        })
+
     $btnExit.Add_Click({ $form.Close() })
 
     Populate-Tree $tree $appWrappers $imgList $cmbFilter.SelectedItem
@@ -891,7 +907,7 @@ Write-Host "Found $($createdShortcuts.Count) created shortcuts in Start Menu fol
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 # -------------------------------------
 # Comment the following line on production release 
-$scriptDir = "d:\Portables"
+#$scriptDir = "d:\Portables"
 # -------------------------------------
 $appFiles = Get-ChildItem -Path $scriptDir -Recurse -Filter *.app -ErrorAction SilentlyContinue
 Write-Host "Total Portable Apps: '$($appFiles.Count)'"
