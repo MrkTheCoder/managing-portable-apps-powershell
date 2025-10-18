@@ -511,7 +511,12 @@ function Show-ManageUI {
         $sb = [System.Text.StringBuilder]::new()
 
         if ($w.HasShortcut) {
-            $sb.AppendLine("App Name: [Already On StartMenu]")
+            if ($w.IsBothSame) {
+                $sb.AppendLine("App Name: [On Start Menu - identical]")
+            }
+            else {
+                $sb.AppendLine("App Name: [On Start Menu - changed]")
+            }
         }
         elseif ($w.IsInstalled) {
             $sb.AppendLine("App Name: [Already Installed]")
