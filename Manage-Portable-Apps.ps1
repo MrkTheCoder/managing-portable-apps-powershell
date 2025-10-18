@@ -1,7 +1,7 @@
 # Manage-Portable-Apps.ps1
 
 $scriptName = "Manage Portable Apps"
-$scriptVersion = "v0.13.202510 Pre-Alpha"
+$scriptVersion = "v0.18.202510 Alpha"
 Write-Host "Running on PowerShell version: $($PSVersionTable.PSVersion)"
 Write-Host "Script: $scriptName $scriptVersion"
 
@@ -383,7 +383,6 @@ function Show-ManageUI {
         [Parameter(Mandatory)] $createdShortcuts
     )
 
-
     # region ─── Helper Functions ──────────────────────────────────────────────
 
     function New-Form {
@@ -415,29 +414,27 @@ function Show-ManageUI {
         }
     }
 
-
     function New-Label {
         param($text, $x, $y)
-        # Create the filter label and dropdown (ComboBox)
-        $lblFilter = New-Object System.Windows.Forms.Label
-        $lblFilter.Text = $text
-        $lblFilter.Location = New-Object System.Drawing.Point($x, $y)
-        $lblFilter.AutoSize = $true
-        # Optionally force minimal width:
+        $lbl = New-Object System.Windows.Forms.Label
+        $lbl.Text = $text
+        $lbl.Location = New-Object System.Drawing.Point($x, $y)
+        $lbl.AutoSize = $true
+        # Optionally tighten width to text:
         $size = [System.Windows.Forms.TextRenderer]::MeasureText($text, $lbl.Font)
-        $lblFilter.Size = New-Object System.Drawing.Size($size.Width, $lbl.Height)
-        return $lblFilter
+        $lbl.Size = New-Object System.Drawing.Size($size.Width, $lbl.Height)
+        return $lbl
     }
 
     function New-ComboBox {
         param($items, $x, $y, $width, $height)
-        $cmbFilter = New-Object System.Windows.Forms.ComboBox
-        $cmbFilter.Location = New-Object System.Drawing.Point($x, $y)
-        $cmbFilter.Size = New-Object System.Drawing.Size($width, $height)
-        $cmbFilter.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
-        $cmbFilter.Items.AddRange($items)
-        $cmbFilter.SelectedIndex = 0  # default to “All”
-        return $cmbFilter    
+        $cmb = New-Object System.Windows.Forms.ComboBox
+        $cmb.Location = New-Object System.Drawing.Point($x, $y)
+        $cmb.Size = New-Object System.Drawing.Size($width, $height)
+        $cmb.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+        $cmb.Items.AddRange($items)
+        $cmb.SelectedIndex = 0
+        return $cmb
     }
 
     function New-Button {
@@ -450,15 +447,10 @@ function Show-ManageUI {
     }
 
     function Set-ButtonLocation {
-        param (
-            [Parameter(Mandatory = $true)]
-            [System.Windows.Forms.Form]$form,
-
-            [Parameter(Mandatory = $true)]
-            [System.Windows.Forms.Button]$btnExit
+        param(
+            [System.Windows.Forms.Form] $form,
+            [System.Windows.Forms.Button] $btnExit
         )
-    
-        # Set the button's location to the bottom-right corner of the form
         $btnExit.Location = New-Object System.Drawing.Point(
             ($form.ClientSize.Width - $btnExit.Width - 15),
             ($form.ClientSize.Height - $btnExit.Height - 5)
@@ -469,11 +461,10 @@ function Show-ManageUI {
         param($imgList)
         $tree = New-Object System.Windows.Forms.TreeView
         $tree.Location = New-Object System.Drawing.Point(10, 40)
-        $tree.Size = New-Object System.Drawing.Size(300, 345 )
+        $tree.Size = New-Object System.Drawing.Size(300, 345)
         $tree.Anchor = [System.Windows.Forms.AnchorStyles] "Top,Left,Bottom"
         $tree.CheckBoxes = $true
         $tree.ImageList = $imgList
-
         return $tree
     }
 
@@ -494,7 +485,6 @@ function Show-ManageUI {
             [object] $App,
             [System.Windows.Forms.ImageList] $ImgList
         )
-
         if ($App.HasShortcut -and $ImgList.Images.ContainsKey('startMenu')) {
             $Node.ImageKey = 'startMenu'
             $Node.SelectedImageKey = 'startMenu'
@@ -509,81 +499,72 @@ function Show-ManageUI {
         }
     }
 
-    function Populate-Tree {
-        param($tree, $appWrappers, $imgList)
-
-        $sorted = $appWrappers | Sort-Object @{Expression = { $_.appGroup } }, @{Expression = { $_.appName } }
-        $groupMap = @{}
-        $ungrouped = @()
-
-        $uninstallRoots = @(
-            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+    function Update-DetailsTextBox {
+        param(
+            [System.Windows.Forms.TextBox] $txt,
+            [object] $w
         )
+        if (-not $w) {
+            $txt.Text = ""
+            return
+        }
+        $sb = [System.Text.StringBuilder]::new()
 
-        foreach ($w in $appWrappers) {
-            $match = $createdShortcuts | Where-Object { $_.ShortcutAppName -eq $w.appName }
+        if ($w.HasShortcut) {
+            $sb.AppendLine("App Name: [Already On StartMenu]")
+        }
+        elseif ($w.IsInstalled) {
+            $sb.AppendLine("App Name: [Already Installed]")
+        }
+        else {
+            $sb.AppendLine("App Name:")
+        }
+        $sb.AppendLine($w.appName)
+        $sb.AppendLine()
 
-            if ($match) {
-                $w | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $true -Force
-                $w | Add-Member -NotePropertyName ShortcutUserType -NotePropertyValue $match.ShortcutUserType -Force
-                $w | Add-Member -NotePropertyName ShortcutAppVersion -NotePropertyValue $match.ShortcutAppVersion -Force
+        if ($w.PSObject.Properties.Match("appVersion").Count) {
+            if ($w.HasShortcut) {
+                $sb.AppendLine("StartMenu -> Portable Version:")
+                $sb.AppendLine(" -------- -> $($w.appVersion)")
+            }
+            elseif ($w.IsInstalled) {
+                $sb.AppendLine("Installed -> Portable Version:")
+                $sb.AppendLine("$($w.InstalledVersion) -> $($w.appVersion)")
             }
             else {
-                $w | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $false -Force
-                $w | Add-Member -NotePropertyName ShortcutUserType -NotePropertyValue $null -Force
-                $w | Add-Member -NotePropertyName ShortcutAppVersion -NotePropertyValue $null -Force
+                $sb.AppendLine("Version:")
+                $sb.AppendLine($w.appVersion)
             }
         }
+        $sb.AppendLine()
 
-        foreach ($w in $sorted) {
-            $w | Add-Member IsInstalled $false -Force
-            $w | Add-Member InstalledVersion "" -Force
+        $sb.AppendLine("Group: " + @(if ($w.appGroup) { $w.appGroup } else { "<UNGROUPED>" }))
+        $sb.AppendLine()
 
+        $sb.AppendLine("StartMenu Folder: " + $w.appStartMenuFolderName)
+        $sb.AppendLine()
 
-            
-            if ($w.appInstallRegistryData) {
-                foreach ($root in $uninstallRoots) {
-                    $regPath = Join-Path $root $w.appInstallRegistryData
-                    if (Get-ValidateRegistryExists -Path $regPath) {
-                        $w.IsInstalled = $true
-                        $ver = Get-RegistryValue -Path $regPath -Name "DisplayVersion"
-                        if ($ver) { $w.InstalledVersion = $ver }
-                        break
-                    }
-                }
-            }
+        $desc = $w.appDescription -replace '\\n', [Environment]::NewLine
+        $sb.AppendLine("Description:`n$desc")
 
-            if ($w.appGroup) {
-                if (-not $groupMap.ContainsKey($w.appGroup)) {
-                    $groupNode = New-Object System.Windows.Forms.TreeNode($w.appGroup)
-                    $groupNode.ImageKey = "folder"
-                    $groupNode.SelectedImageKey = "folder"
-                    $groupMap[$w.appGroup] = $groupNode
-                    $tree.Nodes.Add($groupNode) | Out-Null
-                }
+        $txt.Text = $sb.ToString().TrimEnd()
+    }
 
-                $appNode = New-Object System.Windows.Forms.TreeNode($w.appName)
-                #Write-Host "Inspecting Group $($w): $($w | Format-List -Force)"
-                $appNode.Tag = $w
-                Set-AppNodeIcon -Node $appNode -App $w -ImgList $imgList
-                $groupMap[$w.appGroup].Nodes.Add($appNode) | Out-Null
+    function Update-ParentCheckState {
+        param([System.Windows.Forms.TreeNode] $node)
+        while ($node -ne $null) {
+            $parent = $node.Parent
+            if ($null -eq $parent) { break }
+            $children = $parent.Nodes
+            $countChecked = ($children | Where-Object { $_.Checked }).Count
+            if ($countChecked -eq $children.Count -and $children.Count -gt 0) {
+                $parent.Checked = $true
             }
             else {
-                $ungrouped += $w
+                $parent.Checked = $false
             }
+            $node = $parent
         }
-
-        # Add ungrouped apps
-        foreach ($w in $ungrouped) {
-            $node = New-Object System.Windows.Forms.TreeNode($w.appName)
-            #Write-Host "Inspecting Ungroup $($w): $($w | Format-List -Force)"
-            $node.Tag = $w
-            Set-AppNodeIcon -Node $node -App $w -ImgList $imgList
-            $tree.Nodes.Add($node) | Out-Null
-        }
-
-        $tree.ExpandAll()
     }
 
     function Set-AllTreeNodesChecked {
@@ -606,86 +587,93 @@ function Show-ManageUI {
         }
     }
 
-    function Update-DetailsTextBox {
-        param(
-            [System.Windows.Forms.TextBox] $txt,
-            [object] $w
-        )
+    function Populate-Tree {
+        param($tree, $appWrappers, $imgList, $filter)
 
-        if (-not $w) {
-            $txt.Text = ""
-            return
-        }
+        $tree.Nodes.Clear()
 
-        $sb = [System.Text.StringBuilder]::new()
-
-        # Header line depending on status
-        if ($w.HasShortcut) {
-            $sb.AppendLine("App Name: [Already On StartMenu]")
-        }
-        elseif ($w.IsInstalled) {
-            $sb.AppendLine("App Name: [Already Installed]")
-        }
-        else {
-            $sb.AppendLine("App Name:")
-        }
-        $sb.AppendLine($w.appName)
-        $sb.AppendLine()
-
-        # Version / comparison lines
-        if ($w.PSObject.Properties.Match("appVersion").Count) {
-            if ($w.HasShortcut) {
-                $sb.AppendLine("StartMenu -> Portable Version:")
-                $sb.AppendLine(" -------- -> $($w.appVersion)")
+        # Choose wrappers based on filter
+        switch ($filter) {
+            "All" {
+                $filtered = $appWrappers
             }
-            elseif ($w.IsInstalled) {
-                $sb.AppendLine("Installed -> Portable Version:")
-                $sb.AppendLine("$($w.InstalledVersion) -> $($w.appVersion)")
+            "Installed" {
+                $filtered = $appWrappers | Where-Object { $_.IsInstalled }
+            }
+            "Portable on StartMenu" {
+                $filtered = $appWrappers | Where-Object { $_.HasShortcut }
+            }
+            "Portable not used" {
+                $filtered = $appWrappers | Where-Object { (-not $_.IsInstalled) -and (-not $_.HasShortcut) }
+            }
+            default {
+                $filtered = $appWrappers
+            }
+        }
+
+        # First annotate shortcuts info
+        foreach ($w in $filtered) {
+            $m = $createdShortcuts | Where-Object { $_.ShortcutAppName -eq $w.appName }
+            if ($m) {
+                $w | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $true -Force
+                $w | Add-Member -NotePropertyName ShortcutUserType -NotePropertyValue $m.ShortcutUserType -Force
+                $w | Add-Member -NotePropertyName ShortcutAppVersion -NotePropertyValue $m.ShortcutAppVersion -Force
             }
             else {
-                $sb.AppendLine("Version:")
-                $sb.AppendLine($w.appVersion)
+                $w | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $false -Force
             }
         }
-        $sb.AppendLine()
 
-        # Group
-        $sb.AppendLine("Group: " + $(if ($w.appGroup) { $w.appGroup } else { "<UNGROUPED>" }))
-        $sb.AppendLine()
+        # Sort & group
+        $sorted = $filtered | Sort-Object @{Expression = { $_.appGroup } }, @{Expression = { $_.appName } }
+        $groupMap = @{}
+        $ungrouped = @()
 
-        # StartMenu folder name
-        $sb.AppendLine("StartMenu Folder: " + $w.appStartMenuFolderName)
-        $sb.AppendLine()
+        foreach ($w in $sorted) {
+            # Determine installation
+            $w | Add-Member -NotePropertyName IsInstalled -NotePropertyValue $false -Force
+            $w | Add-Member -NotePropertyName InstalledVersion -NotePropertyValue "" -Force
+            if ($w.appInstallRegistryData) {
+                foreach ($root in @(
+                        "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+                    )) {
+                    $rp = Join-Path $root $w.appInstallRegistryData
+                    if (Get-ValidateRegistryExists -Path $rp) {
+                        $w.IsInstalled = $true
+                        $ver = Get-RegistryValue -Path $rp -Name "DisplayVersion"
+                        if ($ver) { $w.InstalledVersion = $ver }
+                        break
+                    }
+                }
+            }
 
-        # Description, replacing literal "\n" into actual new lines
-        $desc = $w.appDescription -replace '\\n', [Environment]::NewLine
-        $sb.AppendLine("Description:`n$desc")
-
-        $txt.Text = $sb.ToString().TrimEnd()
-    }
-    function Update-ParentCheckState {
-        param([System.Windows.Forms.TreeNode] $node)
-
-        # Walk upward from this node’s parent, adjusting each parent’s Checked property
-        while ($node -ne $null) {
-            $parent = $node.Parent
-            if ($null -eq $parent) { break }
-
-            # Count how many child nodes under parent are checked
-            $allChildren = $parent.Nodes
-            $countChecked = ($allChildren | Where-Object { $_.Checked }).Count
-            if ($countChecked -eq $allChildren.Count -and $allChildren.Count -gt 0) {
-                # all children checked → parent should be checked
-                $parent.Checked = $true
+            if ($w.appGroup) {
+                if (-not $groupMap.ContainsKey($w.appGroup)) {
+                    $groupNode = New-Object System.Windows.Forms.TreeNode($w.appGroup)
+                    $groupNode.ImageKey = "folder"
+                    $groupNode.SelectedImageKey = "folder"
+                    $groupMap[$w.appGroup] = $groupNode
+                    $tree.Nodes.Add($groupNode) | Out-Null
+                }
+                $appNode = New-Object System.Windows.Forms.TreeNode($w.appName)
+                $appNode.Tag = $w
+                Set-AppNodeIcon -Node $appNode -App $w -ImgList $imgList
+                $groupMap[$w.appGroup].Nodes.Add($appNode) | Out-Null
             }
             else {
-                # otherwise, parent should be unchecked
-                $parent.Checked = $false
+                $ungrouped += $w
             }
-
-            # move up
-            $node = $parent
         }
+
+        foreach ($w in $ungrouped) {
+            $node = New-Object System.Windows.Forms.TreeNode($w.appName)
+            $node.Tag = $w
+            Set-AppNodeIcon -Node $node -App $w -ImgList $imgList
+            $tree.Nodes.Add($node) | Out-Null
+        }
+
+        $tree.ExpandAll()
     }
 
     function Add-EventHandlers {
@@ -711,38 +699,40 @@ function Show-ManageUI {
             })
 
         $tree.Add_AfterCheck({
-                if ($_.Action -eq [System.Windows.Forms.TreeViewAction]::ByMouse) {
-                    foreach ($c in $_.Node.Nodes) {
-                        $c.Checked = $_.Node.Checked
+                param($sender, $e)
+                if ($e.Action -eq [System.Windows.Forms.TreeViewAction]::ByMouse) {
+                    foreach ($c in $e.Node.Nodes) {
+                        $c.Checked = $e.Node.Checked
                     }
-                    # Update parent nodes upward
-                    Update-ParentCheckState $_.Node
+                    Update-ParentCheckState $e.Node
                 }
             })
 
         $btnSelectAll.Add_Click({
-                Set-AllTreeNodesChecked $tree.Nodes $true 
-                foreach ($root in $tree.Nodes) {
-                    Update-ParentCheckState $root
+                Set-AllTreeNodesChecked $tree.Nodes $true
+                foreach ($n in $tree.Nodes) {
+                    Update-ParentCheckState $n
                 }
             })
-        $btnUnselectAll.Add_Click({ 
+        $btnUnselectAll.Add_Click({
                 Set-AllTreeNodesChecked $tree.Nodes $false
+                foreach ($n in $tree.Nodes) {
+                    Update-ParentCheckState $n
+                }
             })
-        $btnInvert.Add_Click({ 
+        $btnInvert.Add_Click({
                 Invert-AllTreeNodesChecked $tree.Nodes
-                foreach ($root in $tree.Nodes) {
-                    Update-ParentCheckState $root
-                } 
+                foreach ($n in $tree.Nodes) {
+                    Update-ParentCheckState $n
+                }
             })
 
         $btnExit.Add_Click({ $form.Close() })
     }
 
+    # endregion ───────────────────────────────────────────────────────────
 
-    # endregion
-
-    # region ─── Main UI Construction ───────────────────────────────────────────
+    # region ─── UI Construction ───────────────────────────────────────────
 
     $iconPath = Join-Path $env:SystemRoot "System32\shell32.dll"
     $formIcon = Get-FirstIcon (Get-IconFromFile -FilePath $iconPath -IconIndex 26 -Large)
@@ -754,39 +744,64 @@ function Show-ManageUI {
     Add-IconToImageList $imgList $iconDll 82 "installed" -Warn
     Add-IconToImageList $imgList $iconDll 3  "folder" -Warn
     Add-IconToImageList $imgList $iconDll 10 "empty"  -Warn
-    Add-IconToImageList $imgList $iconDll 248 "startMenu"  -Warn
-    if ($formIcon) { $imgList.Images.Add("portable", $formIcon.ToBitmap()) }
+    Add-IconToImageList $imgList $iconDll 248 "startMenu" -Warn
+    if ($formIcon) {
+        $imgList.Images.Add("portable", $formIcon.ToBitmap())
+    }
 
     $tree = New-TreeView $imgList
     $txt = New-DetailsTextBox
-    $btnSelectAll = New-Button "Select All" 10 $($txt.Location.Y + $txt.Height - 25) 80 25
+
+    $lblFilter = New-Label "Filters" 10 10
+    $cmbFilter = New-ComboBox @("All", "Installed", "Portable on StartMenu", "Portable not used") ($lblFilter.Location.X + $lblFilter.Width + 10) 10 180 25
+
+    $btnSelectAll = New-Button "Select All" 10 ($txt.Location.Y + $txt.Height - 25) 80 25
     $btnUnselectAll = New-Button "Unselect All" 100 $btnSelectAll.Location.Y 80 25
     $btnInvert = New-Button "Invert Selection" 190 $btnSelectAll.Location.Y 120 25
-    $lblFilter = New-Label "Filters" 10 10
-    $cmdFilter = New-ComboBox @("All", "Installed", "Portable on StartMenu", "Portable not used") $($lblFilter.Location.X + $lblFilter.Width + 10) 10 180 25
+
+    $btnSelectAll.Anchor = [System.Windows.Forms.AnchorStyles] "Bottom,Left"
+    $btnUnselectAll.Anchor = [System.Windows.Forms.AnchorStyles] "Bottom,Left"
+    $btnInvert.Anchor = [System.Windows.Forms.AnchorStyles] "Bottom,Left"
+
     $btnExit = New-Button "Exit" 0 0 80 30
     $btnExit.Anchor = [System.Windows.Forms.AnchorStyles] "Bottom,Right"
-    $form.Controls.AddRange(@($tree, $txt, $lblFilter, $cmdFilter, $btnSelectAll, $btnUnselectAll, $btnInvert, $btnExit))
 
-    Populate-Tree $tree $appWrappers $imgList
+    $form.Controls.AddRange(@($tree, $txt, $lblFilter, $cmbFilter,
+            $btnSelectAll, $btnUnselectAll, $btnInvert, $btnExit))
+
+    # Wire filter combobox
+    $cmbFilter.Add_SelectedIndexChanged({
+            Populate-Tree $tree $appWrappers $imgList $cmbFilter.SelectedItem
+        })
+
+    Populate-Tree $tree $appWrappers $imgList $cmbFilter.SelectedItem
     Add-EventHandlers $form $tree $txt $btnSelectAll $btnUnselectAll $btnInvert $btnExit
 
-    # Exit button positioning on resize
     $form.Add_Resize({
             try {
+                # reposition Exit
                 Set-ButtonLocation $form $btnExit
+
+                # reposition the three selection buttons relative to bottom
+                $bottomY = $form.ClientSize.Height - 66  # or some margin
+
+                $btnSelectAll.Location = New-Object System.Drawing.Point(10, $bottomY)
+                $btnUnselectAll.Location = New-Object System.Drawing.Point(100, $bottomY)
+                $btnInvert.Location = New-Object System.Drawing.Point(190, $bottomY)
             }
-            catch {}
+            catch {
+                # ignore during rapid resizing
+            }
         })
 
     Set-ButtonLocation $form $btnExit
 
-    # Resume layout before showing the form
     $form.ResumeLayout($false)
     [void]$form.ShowDialog()
-        
+
     # endregion
 }
+
 
 
 # ---- Main ----
