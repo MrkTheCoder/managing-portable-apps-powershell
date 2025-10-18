@@ -470,7 +470,11 @@ function Show-ManageUI {
             [object] $App,
             [System.Windows.Forms.ImageList] $ImgList
         )
-        if ($App.HasShortcut -and $ImgList.Images.ContainsKey('startMenu')) {
+        if (($App.HasShortcut) -and ($App.IsBothSame -eq $false) -and $ImgList.Images.ContainsKey('changed')) {
+            $Node.ImageKey = 'changed'
+            $Node.SelectedImageKey = 'changed'
+        }
+        elseif ($App.HasShortcut -and $ImgList.Images.ContainsKey('startMenu')) {
             $Node.ImageKey = 'startMenu'
             $Node.SelectedImageKey = 'startMenu'
         }
@@ -673,6 +677,33 @@ function Show-ManageUI {
     # endregion ───────────────────────────────────────────────────────────
 
     # region ─── UI Construction with TableLayoutPanel ────────────────────
+    # Convert your .ico file to Base64 using PowerShell once:
+    #   [Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\icon.ico")) | Out-File -Encoding ascii icon_base64.txt
+    $changedStartMenuShortcutIcon = @'
+AAABAAEAEBAAAAEAIABoBAAAFgAAACgAAAAQAAAAIAAAAAEAIAAAAAAAQAQAAAAAAAAAAAAAAAAAAAAAAAD
+/37IA7a1cAPzcsQH/3bAB/t2uAf7cqgH93K0B7718AXmfiQFRrLoBuLacAaKwnQFauMcBu7+oAeinUgB7q6
+wA7axbAOieQD7rqld+7ataf+yrWH/sqliA7KpXgOefRIDVkj2AwYpCgK99OICwfDl/wYg+f9eWRX7fkzM+y
+JNPAPzcsADsqlh++dap+/zbrvv72qz9+9mq/frZq/3st3T9oJpv/X2dlP2kl3v9mpV8/X+hmPvEtJH74Z9K
+fp+ijwH/37MA7a1df/zcsvv+3rL7/t2v/f3crP383a79779//YGxmf0z2fD9XszV/WbT3v1t4u/7ws25++q
+pVH+Mx8sA/uC2AeytXX/73bP8/t+0/f3esv793a7//N2x//DAgP+VsZb/Mt36/zbj+v9L5vv+Z+Hz/dLUuf
+zpqVaAqtDJAf7htwHsrV6A+961/f7gtv3937P//d6x//zesv/Nwpz/XbnJ/0nZ+/844Pv/NOL8/z3g+f2Dz
+9H9y6ZjgFLU6gH/5L4B7K5fgPvguf3+47z9/uG6//3guP/03rr/fsXY/2vN8v963Pv/Wtz9/zTc/P854fv9
+SNnv/V2xtoEzyPUB88SHAeqlT4DywIH988OG/fPDhf/zwoP/8MGD/8qvev+vq4P/gbe1/2XQ9f9Kx+r/k7a
+g/bWzif3BomOAlrOhAfPCgwHqpU6A8r99/fPBgv3zwYH/88B///PBf//srl//665g/9PBl/9iw+f/e8LQ/+
+a/hf3vu3b96aFGgPK/fQH/4LYB7K9ggPvds/3+37T9/t6y//3drv/+3rH/8sB///HCg//54Ln/y9TA/9zWu
+f/93K79+tmr/eyrV4D93K0B/t+zAeyvYYD73bL9/t6y/f3dr//93Kz//t2u//LAf//ywoP//uC3//zesf/8
+3a///tys/fvZqf3sqleA/tyqAf7gtwHsr2J/+961/P7ftf393rP+/d2v//7esv/ywYH/8sOF//7huv/937P
+//d6y/v7dr/372qz87atZf/7drgH/4rkA7bBjf/vft/v+4bj7/t+1/f7esv3/37T988GC/fPDhv3/47z9/u
+C2/f7ftP3+3rL7+9uu++2rWn//3rAA/OC4AOyuYH7527H7/N+3+/vetf373bL9/N2z/fLAf/3xwIH9/N+5/
+fvetf373bP9/Nyy+/nXqfvtrVt+/NyxAO2wZADooko+665gfu2wY3/sr2J/7a9hgO2vYIDqplCA6qVPgO2u
+X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPEhwH
+/5L4B/uG3Af7gtQH/37MB/NyvAe2sWwD/37IAwAP//4AB//+AAP//gAH//wAA//8AAP//AAD//wAA//8AAP
+//AAD//wAA//8AAP//gAH//4AB//+AAf//wAP//w==
+'@
+
+    $iconBytes = [Convert]::FromBase64String($changedStartMenuShortcutIcon)
+    $stream = New-Object IO.MemoryStream(, $iconBytes)
+    $changedIcon = [System.Drawing.Icon]::FromHandle(([System.Drawing.Icon]::new($stream)).Handle)
 
     $iconPath = Join-Path $env:SystemRoot "System32\shell32.dll"
     $formIcon = Get-FirstIcon (Get-IconFromFile -FilePath $iconPath -IconIndex 26 -Large)
@@ -685,6 +716,7 @@ function Show-ManageUI {
     Add-IconToImageList $imgList $iconDll 3  "folder" -Warn
     Add-IconToImageList $imgList $iconDll 10 "empty"  -Warn
     Add-IconToImageList $imgList $iconDll 248 "startMenu" -Warn
+    $imgList.Images.Add("changed", $changedIcon.ToBitmap())
     if ($formIcon) {
         $imgList.Images.Add("portable", $formIcon.ToBitmap())
     }
