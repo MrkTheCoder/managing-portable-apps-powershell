@@ -1,7 +1,7 @@
 # Manage-Portable-Apps.ps1
 
 $scriptName = "Manage Portable Apps"
-$scriptVersion = "v0.18.202510 Alpha"
+$scriptVersion = "v0.22.202510 Alpha"
 Write-Host "Running on PowerShell version: $($PSVersionTable.PSVersion)"
 Write-Host "Script: $scriptName $scriptVersion"
 
@@ -393,7 +393,7 @@ function Show-ManageUI {
         $form.Size = New-Object System.Drawing.Size(850, 500)
         $form.StartPosition = "CenterScreen"
         $form.MinimumSize = $form.Size
-        $form.SuspendLayout()
+        $form.Padding = New-Object System.Windows.Forms.Padding(10)
         return $form
     }
 
@@ -415,67 +415,52 @@ function Show-ManageUI {
     }
 
     function New-Label {
-        param($text, $x, $y)
+        param($text)
         $lbl = New-Object System.Windows.Forms.Label
         $lbl.Text = $text
-        $lbl.Location = New-Object System.Drawing.Point($x, $y)
         $lbl.AutoSize = $true
-        # Optionally tighten width to text:
-        $size = [System.Windows.Forms.TextRenderer]::MeasureText($text, $lbl.Font)
-        $lbl.Size = New-Object System.Drawing.Size($size.Width, $lbl.Height)
+        $lbl.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+        $lbl.Margin = New-Object System.Windows.Forms.Padding(0, 3, 5, 3)
         return $lbl
     }
 
     function New-ComboBox {
-        param($items, $x, $y, $width, $height)
+        param($items)
         $cmb = New-Object System.Windows.Forms.ComboBox
-        $cmb.Location = New-Object System.Drawing.Point($x, $y)
-        $cmb.Size = New-Object System.Drawing.Size($width, $height)
         $cmb.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
         $cmb.Items.AddRange($items)
         $cmb.SelectedIndex = 0
+        $cmb.Dock = [System.Windows.Forms.DockStyle]::Fill
+        $cmb.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 0)
         return $cmb
     }
 
     function New-Button {
-        param($text, $x, $y, $width, $height)
+        param($text, $dock = [System.Windows.Forms.DockStyle]::Fill)
         $btn = New-Object System.Windows.Forms.Button
         $btn.Text = $text
-        $btn.Location = New-Object System.Drawing.Point($x, $y)
-        $btn.Size = New-Object System.Drawing.Size($width, $height)
+        $btn.Dock = $dock
+        $btn.Margin = New-Object System.Windows.Forms.Padding(3)
         return $btn
-    }
-
-    function Set-ButtonLocation {
-        param(
-            [System.Windows.Forms.Form] $form,
-            [System.Windows.Forms.Button] $btnExit
-        )
-        $btnExit.Location = New-Object System.Drawing.Point(
-            ($form.ClientSize.Width - $btnExit.Width - 15),
-            ($form.ClientSize.Height - $btnExit.Height - 5)
-        )
     }
 
     function New-TreeView {
         param($imgList)
         $tree = New-Object System.Windows.Forms.TreeView
-        $tree.Location = New-Object System.Drawing.Point(10, 40)
-        $tree.Size = New-Object System.Drawing.Size(300, 345)
-        $tree.Anchor = [System.Windows.Forms.AnchorStyles] "Top,Left,Bottom"
+        $tree.Dock = [System.Windows.Forms.DockStyle]::Fill
         $tree.CheckBoxes = $true
         $tree.ImageList = $imgList
+        $tree.Margin = New-Object System.Windows.Forms.Padding(0)
         return $tree
     }
 
     function New-DetailsTextBox {
         $txt = New-Object System.Windows.Forms.TextBox
-        $txt.Location = New-Object System.Drawing.Point(320, 40)
-        $txt.Size = New-Object System.Drawing.Size(510, 380)
         $txt.Multiline = $true
         $txt.ReadOnly = $true
         $txt.ScrollBars = "Vertical"
-        $txt.Anchor = [System.Windows.Forms.AnchorStyles] "Top,Left,Bottom,Right"
+        $txt.Dock = [System.Windows.Forms.DockStyle]::Fill
+        $txt.Margin = New-Object System.Windows.Forms.Padding(0)
         return $txt
     }
 
@@ -557,7 +542,7 @@ function Show-ManageUI {
 
     function Update-ParentCheckState {
         param([System.Windows.Forms.TreeNode] $node)
-        while ($node -ne $null) {
+        while ($null -ne $node) {
             $parent = $node.Parent
             if ($null -eq $parent) { break }
             $children = $parent.Nodes
@@ -685,63 +670,9 @@ function Show-ManageUI {
         $tree.ExpandAll()
     }
 
-    function Add-EventHandlers {
-        param(
-            [System.Windows.Forms.Form] $form,
-            [System.Windows.Forms.TreeView] $tree,
-            [System.Windows.Forms.TextBox] $txt,
-            [System.Windows.Forms.Button] $btnSelectAll,
-            [System.Windows.Forms.Button] $btnUnselectAll,
-            [System.Windows.Forms.Button] $btnInvert,
-            [System.Windows.Forms.Button] $btnExit
-        )
-
-        $tree.Add_AfterSelect({
-                param($sender, $e)
-                $node = $e.Node
-                if ($node -and $node.Tag) {
-                    Update-DetailsTextBox -txt $txt -w $node.Tag
-                }
-                else {
-                    $txt.Text = ""
-                }
-            })
-
-        $tree.Add_AfterCheck({
-                param($sender, $e)
-                if ($e.Action -eq [System.Windows.Forms.TreeViewAction]::ByMouse) {
-                    foreach ($c in $e.Node.Nodes) {
-                        $c.Checked = $e.Node.Checked
-                    }
-                    Update-ParentCheckState $e.Node
-                }
-            })
-
-        $btnSelectAll.Add_Click({
-                Set-AllTreeNodesChecked $tree.Nodes $true
-                foreach ($n in $tree.Nodes) {
-                    Update-ParentCheckState $n
-                }
-            })
-        $btnUnselectAll.Add_Click({
-                Set-AllTreeNodesChecked $tree.Nodes $false
-                foreach ($n in $tree.Nodes) {
-                    Update-ParentCheckState $n
-                }
-            })
-        $btnInvert.Add_Click({
-                Invert-AllTreeNodesChecked $tree.Nodes
-                foreach ($n in $tree.Nodes) {
-                    Update-ParentCheckState $n
-                }
-            })
-
-        $btnExit.Add_Click({ $form.Close() })
-    }
-
     # endregion ───────────────────────────────────────────────────────────
 
-    # region ─── UI Construction ───────────────────────────────────────────
+    # region ─── UI Construction with TableLayoutPanel ────────────────────
 
     $iconPath = Join-Path $env:SystemRoot "System32\shell32.dll"
     $formIcon = Get-FirstIcon (Get-IconFromFile -FilePath $iconPath -IconIndex 26 -Large)
@@ -758,54 +689,156 @@ function Show-ManageUI {
         $imgList.Images.Add("portable", $formIcon.ToBitmap())
     }
 
+    # Main TableLayoutPanel (3 rows)
+    $mainLayout = New-Object System.Windows.Forms.TableLayoutPanel
+    $mainLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $mainLayout.ColumnCount = 1
+    $mainLayout.RowCount = 3
+    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 35))) | Out-Null  # Top bar
+    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null  # Main content
+    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 45))) | Out-Null  # Bottom buttons
+
+    # Row 0: Top bar with filter and About button
+    $topBarLayout = New-Object System.Windows.Forms.TableLayoutPanel
+    $topBarLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $topBarLayout.ColumnCount = 4
+    $topBarLayout.RowCount = 1
+    $topBarLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::AutoSize))) | Out-Null  # Label
+    $topBarLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 200))) | Out-Null  # ComboBox
+    $topBarLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null  # Spacer
+    $topBarLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90))) | Out-Null  # About button
+
+    $lblFilter = New-Label "Filters:"
+    $cmbFilter = New-ComboBox @("All", "Installed", "Portable on StartMenu", "Portable not used")
+    $btnAbout = New-Button "About"
+
+    $topBarLayout.Controls.Add($lblFilter, 0, 0)
+    $topBarLayout.Controls.Add($cmbFilter, 1, 0)
+    $topBarLayout.Controls.Add($btnAbout, 3, 0)
+
+    # Row 1: Main content area (TreeView + Details + Selection buttons)
+    $contentLayout = New-Object System.Windows.Forms.TableLayoutPanel
+    $contentLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $contentLayout.ColumnCount = 2
+    $contentLayout.RowCount = 1
+    $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 310))) | Out-Null  # Left panel
+    $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null  # Right panel
+
+    # Left panel: TreeView + Selection buttons
+    $leftPanel = New-Object System.Windows.Forms.TableLayoutPanel
+    $leftPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $leftPanel.ColumnCount = 1
+    $leftPanel.RowCount = 2
+    $leftPanel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null  # TreeView
+    $leftPanel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 35))) | Out-Null  # Selection buttons
+
     $tree = New-TreeView $imgList
+
+    # Selection buttons panel
+    $selectionButtonsLayout = New-Object System.Windows.Forms.TableLayoutPanel
+    $selectionButtonsLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $selectionButtonsLayout.ColumnCount = 3
+    $selectionButtonsLayout.RowCount = 1
+    $selectionButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 33.33))) | Out-Null
+    $selectionButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 33.33))) | Out-Null
+    $selectionButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 33.34))) | Out-Null
+
+    $btnSelectAll = New-Button "Select All"
+    $btnUnselectAll = New-Button "Unselect All"
+    $btnInvert = New-Button "Invert Selection"
+
+    $selectionButtonsLayout.Controls.Add($btnSelectAll, 0, 0)
+    $selectionButtonsLayout.Controls.Add($btnUnselectAll, 1, 0)
+    $selectionButtonsLayout.Controls.Add($btnInvert, 2, 0)
+
+    $leftPanel.Controls.Add($tree, 0, 0)
+    $leftPanel.Controls.Add($selectionButtonsLayout, 0, 1)
+
+    # Right panel: Details textbox
     $txt = New-DetailsTextBox
 
-    $lblFilter = New-Label "Filters" 10 10
-    $cmbFilter = New-ComboBox @("All", "Installed", "Portable on StartMenu", "Portable not used") ($lblFilter.Location.X + $lblFilter.Width + 10) 10 180 25
+    $contentLayout.Controls.Add($leftPanel, 0, 0)
+    $contentLayout.Controls.Add($txt, 1, 0)
 
-    $btnSelectAll = New-Button "Select All" 10 ($txt.Location.Y + $txt.Height - 25) 80 25
-    $btnUnselectAll = New-Button "Unselect All" 100 $btnSelectAll.Location.Y 80 25
-    $btnInvert = New-Button "Invert Selection" 190 $btnSelectAll.Location.Y 120 25
+    # Row 2: Bottom buttons (Add Shortcut, Remove Shortcut, Create .app file, Exit)
+    $bottomButtonsLayout = New-Object System.Windows.Forms.TableLayoutPanel
+    $bottomButtonsLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $bottomButtonsLayout.ColumnCount = 5
+    $bottomButtonsLayout.RowCount = 1
+    $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null  # Spacer
+    $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 140))) | Out-Null  # Create .app
+    $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 140))) | Out-Null  # Remove Shortcut
+    $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 120))) | Out-Null  # Add Shortcut
+    $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90))) | Out-Null  # Exit
 
-    $btnSelectAll.Anchor = [System.Windows.Forms.AnchorStyles] "Bottom,Left"
-    $btnUnselectAll.Anchor = [System.Windows.Forms.AnchorStyles] "Bottom,Left"
-    $btnInvert.Anchor = [System.Windows.Forms.AnchorStyles] "Bottom,Left"
+    $btnCreateAppFile = New-Button "Create '.app' file"
+    $btnRemoveShortcut = New-Button "Remove Shortcut"
+    $btnAddShortcut = New-Button "Add Shortcut"
+    $btnExit = New-Button "Exit"
 
-    $btnExit = New-Button "Exit" 0 0 80 30
-    $btnExit.Anchor = [System.Windows.Forms.AnchorStyles] "Bottom,Right"
+    $bottomButtonsLayout.Controls.Add($btnCreateAppFile, 1, 0)
+    $bottomButtonsLayout.Controls.Add($btnRemoveShortcut, 2, 0)
+    $bottomButtonsLayout.Controls.Add($btnAddShortcut, 3, 0)
+    $bottomButtonsLayout.Controls.Add($btnExit, 4, 0)
 
-    $form.Controls.AddRange(@($tree, $txt, $lblFilter, $cmbFilter,
-            $btnSelectAll, $btnUnselectAll, $btnInvert, $btnExit))
+    # Add all rows to main layout
+    $mainLayout.Controls.Add($topBarLayout, 0, 0)
+    $mainLayout.Controls.Add($contentLayout, 0, 1)
+    $mainLayout.Controls.Add($bottomButtonsLayout, 0, 2)
 
-    # Wire filter combobox
+    $form.Controls.Add($mainLayout)
+
+    # Wire events
     $cmbFilter.Add_SelectedIndexChanged({
             Populate-Tree $tree $appWrappers $imgList $cmbFilter.SelectedItem
         })
 
-    Populate-Tree $tree $appWrappers $imgList $cmbFilter.SelectedItem
-    Add-EventHandlers $form $tree $txt $btnSelectAll $btnUnselectAll $btnInvert $btnExit
-
-    $form.Add_Resize({
-            try {
-                # reposition Exit
-                Set-ButtonLocation $form $btnExit
-
-                # reposition the three selection buttons relative to bottom
-                $bottomY = $form.ClientSize.Height - 66  # or some margin
-
-                $btnSelectAll.Location = New-Object System.Drawing.Point(10, $bottomY)
-                $btnUnselectAll.Location = New-Object System.Drawing.Point(100, $bottomY)
-                $btnInvert.Location = New-Object System.Drawing.Point(190, $bottomY)
+    $tree.Add_AfterSelect({
+            param($sender, $e)
+            $node = $e.Node
+            if ($node -and $node.Tag) {
+                Update-DetailsTextBox -txt $txt -w $node.Tag
             }
-            catch {
-                # ignore during rapid resizing
+            else {
+                $txt.Text = ""
             }
         })
 
-    Set-ButtonLocation $form $btnExit
+    $tree.Add_AfterCheck({
+            param($sender, $e)
+            if ($e.Action -eq [System.Windows.Forms.TreeViewAction]::ByMouse) {
+                foreach ($c in $e.Node.Nodes) {
+                    $c.Checked = $e.Node.Checked
+                }
+                Update-ParentCheckState $e.Node
+            }
+        })
 
-    $form.ResumeLayout($false)
+    $btnSelectAll.Add_Click({
+            Set-AllTreeNodesChecked $tree.Nodes $true
+            foreach ($n in $tree.Nodes) {
+                Update-ParentCheckState $n
+            }
+        })
+
+    $btnUnselectAll.Add_Click({
+            Set-AllTreeNodesChecked $tree.Nodes $false
+            foreach ($n in $tree.Nodes) {
+                Update-ParentCheckState $n
+            }
+        })
+
+    $btnInvert.Add_Click({
+            Invert-AllTreeNodesChecked $tree.Nodes
+            foreach ($n in $tree.Nodes) {
+                Update-ParentCheckState $n
+            }
+        })
+
+    $btnExit.Add_Click({ $form.Close() })
+
+    Populate-Tree $tree $appWrappers $imgList $cmbFilter.SelectedItem
+
     [void]$form.ShowDialog()
 
     # endregion
