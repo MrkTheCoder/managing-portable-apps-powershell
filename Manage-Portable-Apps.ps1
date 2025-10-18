@@ -525,7 +525,7 @@ function Show-ManageUI {
         if ($w.PSObject.Properties.Match("appVersion").Count) {
             if ($w.HasShortcut) {
                 $sb.AppendLine("StartMenu -> Portable Version:")
-                $sb.AppendLine(" -------- -> $($w.appVersion)")
+                $sb.AppendLine(" $($w.ShortcutAppVersion) -> $($w.appVersion)")
             }
             elseif ($w.IsInstalled) {
                 $sb.AppendLine("Installed -> Portable Version:")
@@ -618,6 +618,10 @@ function Show-ManageUI {
                 $w | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $true -Force
                 $w | Add-Member -NotePropertyName ShortcutUserType -NotePropertyValue $m.ShortcutUserType -Force
                 $w | Add-Member -NotePropertyName ShortcutAppVersion -NotePropertyValue $m.ShortcutAppVersion -Force
+                $portableHash = (Get-FileHash -Path $w.AppFilePath -Algorithm MD5).Hash
+                $shortcutAppPath = Join-Path $m.ShortcutPath ".app"
+                $shortcutHash = (Get-FileHash -Path $shortcutAppPath -Algorithm MD5).Hash
+                $w | Add-Member -NotePropertyName IsBothSame -NotePropertyValue ($portableHash -eq $shortcutHash) -Force
             }
             else {
                 $w | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $false -Force
