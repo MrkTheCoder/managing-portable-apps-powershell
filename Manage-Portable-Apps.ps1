@@ -820,9 +820,53 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
 
     $form.Controls.Add($mainLayout)
 
+    # Helper function to update button states based on selection
+    function Update-ButtonStates {
+        # Get all checked nodes that have a Tag (app wrapper)
+        $checkedApps = New-Object System.Collections.ArrayList  # Changed this line
+    
+        function Get-CheckedNodes {
+            param($nodes)
+            foreach ($node in $nodes) {
+                if ($node.Checked -and $node.Tag) {
+                    [void]$checkedApps.Add($node.Tag)  # Changed this line
+                }
+                if ($node.Nodes.Count -gt 0) {
+                    Get-CheckedNodes $node.Nodes
+                }
+            }
+        }
+        
+        Get-CheckedNodes $tree.Nodes
+        
+        # Update "Add Shortcut" button state
+        # Enabled if at least one checked item has IsBothSame = false OR HasShortcut = false
+        $hasItemsToAdd = $false
+        foreach ($app in $checkedApps) {
+            if (($app.PSObject.Properties.Match("HasShortcut").Count -gt 0 -and -not $app.HasShortcut) -or
+                ($app.PSObject.Properties.Match("IsBothSame").Count -gt 0 -and -not $app.IsBothSame)) {
+                $hasItemsToAdd = $true
+                break
+            }
+        }
+        $btnAddShortcut.Enabled = $hasItemsToAdd
+        
+        # Update "Remove Shortcut" button state
+        # Enabled if at least one checked item has HasShortcut = true
+        $hasItemsToRemove = $false
+        foreach ($app in $checkedApps) {
+            if ($app.PSObject.Properties.Match("HasShortcut").Count -gt 0 -and $app.HasShortcut) {
+                $hasItemsToRemove = $true
+                break
+            }
+        }
+        $btnRemoveShortcut.Enabled = $hasItemsToRemove
+    }
+
     # Wire events
     $cmbFilter.Add_SelectedIndexChanged({
             Populate-Tree $tree $appWrappers $imgList $cmbFilter.SelectedItem
+            Update-ButtonStates
         })
 
     $tree.Add_AfterSelect({
@@ -844,6 +888,7 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
                 }
                 Update-ParentCheckState $e.Node
             }
+            Update-ButtonStates
         })
 
     $btnSelectAll.Add_Click({
@@ -851,6 +896,7 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
             foreach ($n in $tree.Nodes) {
                 Update-ParentCheckState $n
             }
+            Update-ButtonStates
         })
 
     $btnUnselectAll.Add_Click({
@@ -858,6 +904,7 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
             foreach ($n in $tree.Nodes) {
                 Update-ParentCheckState $n
             }
+            Update-ButtonStates
         })
 
     $btnInvert.Add_Click({
@@ -865,6 +912,7 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
             foreach ($n in $tree.Nodes) {
                 Update-ParentCheckState $n
             }
+            Update-ButtonStates
         })
 
     $btnAbout.Add_Click({
@@ -886,6 +934,7 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
     $btnExit.Add_Click({ $form.Close() })
 
     Populate-Tree $tree $appWrappers $imgList $cmbFilter.SelectedItem
+    Update-ButtonStates  # Set initial button states
 
     [void]$form.ShowDialog()
 
