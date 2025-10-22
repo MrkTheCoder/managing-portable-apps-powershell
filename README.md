@@ -1,101 +1,147 @@
 # Managing Portable Apps – PowerShell Script
 
+***
+
 ## Introduction
 
-This script automates the management of portable applications by scanning a designated folder where each portable app is stored in its own subfolder and identified by a `.app` JSON file. It then compares those portable apps against the Start Menu entries on the system, allowing you to review, add or remove shortcuts as needed. The tool gives you a visual UI to manage which portables appear in your Start Menu, making it easier to keep your portable app collection in sync and maintain a clean environment.
+This script automates the management of portable applications by scanning a designated folder where each portable app is stored in its own subfolder and identified by a **`.app` JSON file**. The script allows **users to create this marker file** for new applications. It then compares those portable apps against the Start Menu entries on the system, allowing you to review, add, or remove shortcuts as needed. Because the shortcuts are based on the `.app` file's dynamic pathing logic, they **adapt even if you move the portable application folder** to a new location. The tool gives you a visual UI to manage which portables appear in your Start Menu, making it easier to keep your portable app collection in sync and maintain a clean environment.
+
+***
 
 ## App Window
-<img width="860" height="493" alt="image" src="https://github.com/user-attachments/assets/829663cd-9c75-40c9-8e20-02abb0ad757f" />
 
+<p align="center">
+	<img width="836" height="493" alt="image" src="https://github.com/user-attachments/assets/2468c691-afb5-4df1-82f8-a48956638a2e" />
+</p>
 
-
-## Development Process
-
-This project was developed using Windows PowerShell and the .NET Windows Forms libraries (via `System.Windows.Forms` and `System.Drawing`). The workflow included:
-
-* Defining a JSON-based `.app` file specification for each portable application.
-* Writing PowerShell functions to scan directories, read JSON, compute file hashes, and query the Windows registry for installed applications.
-* Building a user interface (UI) in PowerShell using WinForms: a TreeView, details panel, combo-box filter, and multiple action buttons.
-* Iterating the UI layout to use a `TableLayoutPanel` for responsive and consistent placement instead of manual `Location` objects.
-* Leveraging UI event handlers (e.g., AfterSelect, AfterCheck) and internal logic for filtering, selection, and action-button enabling.
-* Emphasizing separation of concerns by dividing logic into helper functions (e.g., `Update-DetailsTextBox`, `Set-AppNodeIcon`) and application logic.
-* Although my PowerShell experience was limited, I guided two AI assistants (ChatGPT + Claude.ai) to generate, refine, and structure the code according to my design, then thoroughly reviewed and modified it to match the intended behaviour and best practices.
+***
 
 ## Highlight Features
 
-* 🎯 Tree-based view of portable apps grouped by category
-* ✅ Automatic detection of whether an app is installed, has a Start Menu shortcut, or both
-* 🔍 Filter options: All / Installed / Portable on StartMenu / Portable not used
-* 🧮 Hash-comparison of `.app` file vs actual shortcut `.app` to detect changes
-* 🔧 Buttons for mass-select actions (Select All, Unselect All, Invert Selection)
-* 📁 Dedicated buttons: Add Shortcut, Remove Shortcut, Create `.app` file, About
-* 🧠 Responsive UI layout using a `TableLayoutPanel` (no manual repositioning)
+* **JSON-Based Specification:** Uses a standard **`.app` JSON file** as a specification marker to define each portable application and its shortcut metadata.
+* **Dynamic Path Resolution:** All generated shortcuts are dynamic, ensuring they remain valid and functional even if the portable application folder is **moved to a new drive or system**.
+* **Intelligent Syncing:** The script scans your local portable apps and checks the Windows Start Menu and installed applications, providing **visual status indicators** (Installed, Shortcut OK, Shortcut Modified, Missing).
+* **Full UI Management:** Applications are managed through a comprehensive **WinForms GUI** featuring a TreeView, filtering controls, a details panel, and immediate action buttons.
+* **Core Actions:** Supports **adding/updating shortcuts**, **removing obsolete shortcuts**, and **generating new `.app` definition files** for newly added portable apps.
+* **Clean Architecture:** Code leverages PowerShell functions for **directory scanning**, **JSON handling**, and **UI event management**, promoting separation of concerns and maintainability.
 
-## Detailed Feature Breakdown
+***
 
-| Feature                                                                                | Description                                                                                                                                                                                                           | Benefit                                                                                  |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **Tree-based view**                                                                    | Displays each portable app (with grouping via `appGroup`) and uses icons: “portable”, “installed”, “startMenu”                                                                                                        | Provides clear visual status at a glance                                                 |
-| **Installation & shortcut detection**                                                  | For each portable wrapper: checks if installed (`IsInstalled`), has a Start Menu shortcut (`HasShortcut`), and if the portable and shortcut `.app` files match via MD5 (`IsBothSame`)                                 | Helps you identify duplicates, outdated shortcuts, or unused portables                   |
-| **Filter combobox (“All”, “Installed”, “Portable on StartMenu”, “Portable not used”)** | Allows you to quickly focus on a subset of apps                                                                                                                                                                       | Speeds up management and cleanup                                                         |
-| **Detail panel**                                                                       | Shows metadata of the selected app: name, version comparison, group, folder, description                                                                                                                              | Gives context and helps you make informed decisions                                      |
-| **Mass-action buttons (Select All / Unselect / Invert)**                               | Lets you easily change the selection state of many nodes at once, with logic to update parent group check states                                                                                                      | Efficient for large collections                                                          |
-| **Action buttons (Add Shortcut / Remove Shortcut / Create `.app` / About)**            | Enables targeted operations: adding missing shortcuts, removing unwanted ones, creating wrapper metadata files, and viewing about information. Buttons are dynamically enabled/disabled based on selection and state. | Streamlines workflow and ensures correct operations                                      |
-| **Responsive layout with TableLayoutPanel**                                            | All UI elements are arranged in panels with docking and spacing, eliminating manual positioning and resizing code                                                                                                     | More maintainable UI and improved experience on different resolutions                    |
-| **Hash comparison for `.app` ↔ shortcut `.app`**                                       | Compares the MD5 of the portable’s `.app` file and the shortcut’s `.app` in Start Menu to detect if they diverge (`IsBothSame`)                                                                                       | Lets you detect when a portable version has changed but the shortcut hasn’t been updated |
-| **About dialog**                                                                       | Shows an introduction, author details, and acknowledgement of AI-guided code generation followed by author review                                                                                                     | Transparently credits the development process and gives users context                    |
+## `.app` JSON File Structure
 
----
+Each portable application is identified by a JSON-based **`.app` marker file** located in its root folder. This file contains metadata and definitions for one or more Start Menu shortcuts.
 
-### Technologies & Icons
+The key feature is the use of the dynamic variable `[.app_path]` within the file. This placeholder is automatically resolved by the script to the current, absolute path of the portable application's root folder at runtime, enabling flexible and efficient shortcut creation regardless of the app's location.
 
-<img width="64" alt="PowerShell" src="https://upload.wikimedia.org/wikipedia/commons/2/2f/PowerShell_5.0_icon.png" /> <img width="64" alt="WinForm" src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/Microsoft_Forms_%282019-present%29.svg/2203px-Microsoft_Forms_%282019-present%29.svg.png" /> <img width="64" alt="JSON" src="https://cdn-icons-png.flaticon.com/512/136/136443.png" /> <img width="64" alt="VSCode" src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Visual_Studio_Code_1.35_icon.svg/250px-Visual_Studio_Code_1.35_icon.svg.png" /> <img width="64" alt="ChatGPT" src="https://github.com/user-attachments/assets/47bd4ab7-dedd-4576-8054-07aa4832943c" /> <img width="64" alt="Claude.ai" src="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/Claude_AI_symbol.svg/250px-Claude_AI_symbol.svg.png" />
+Here is a sample file demonstrating the structure and use of `[.app_path]`:
 
-* **PowerShell** – core scripting language used for orchestration and UI. ([Icons8][1])
-* **Windows Forms (.NET)** – UI framework to build the graphical interface inside PowerShell.
-* **JSON** – file format for `.app` wrappers describing each portable application.
-* **Visual Studio Code** – the IDE used for writing and editing this PowerShell script.
-* **ChatGPT** – one of the AI tools used to help generate and refine the code and logic.
-* **Claude AI** – the second AI assistant employed in the development process for analysis and review.
+```json
+{
+  "appName": "Screen Copy",
+  "appVersion": "3.3.1",
+  "appGroup": "Mobile Suite",
+  "appDescription": "scrcpy is a free and open-source app that allows screen mirroring and control of \nAndroid devices via USB or Wi-Fi. It supports keyboard and mouse interaction.",
+  "appInstallRegistryData": "",
+  "appStartMenuFolderName": "Screen Copy (Mobile Remote Control)",
+  "shortcuts": [
+    {
+      "name": "[Open DOS] scrcpy x64 (Portable)",
+      "target": "%SystemRoot%\\System32\\cmd.exe",
+      "arguments": "[.app_path]\\",
+      "workingDirectory": "[.app_path]\\",
+      "icon": ",0",
+      "windowStyle": 1,
+      "description": ""
+    },
+    {
+      "name": "scrcpy x64 (Portable)",
+      "target": "[.app_path]\\scrcpy-win64\\scrcpy.exe",
+      "arguments": "",
+      "workingDirectory": "[.app_path]\\scrcpy-win64",
+      "icon": ",0",
+      "windowStyle": 1,
+      "description": ""
+    },
+    {
+      "name": "[Open DOS] scrcpy x86 (Portable)",
+      "target": "%SystemRoot%\\System32\\cmd.exe",
+      "arguments": "[.app_path]\\",
+      "workingDirectory": "[.app_path]\\",
+      "icon": ",0",
+      "windowStyle": 1,
+      "description": ""
+    },
+    {
+      "name": "scrcpy x86 (Portable)",
+      "target": "[.app_path]\\scrcpy-win32\\scrcpy.exe",
+      "arguments": "",
+      "workingDirectory": "[.app_path]\\scrcpy-win32",
+      "icon": ",0",
+      "windowStyle": 1,
+      "description": ""
+    }
+  ]
+}
+```
 
+***
 
----
+## Development Process
 
+This project was developed using **Windows PowerShell** and the **.NET Windows Forms libraries** (via `System.Windows.Forms` and `System.Drawing`). Although my PowerShell experience was limited, I guided two AI assistants (**ChatGPT** and **Claude.ai**) to generate, refine, and structure the code according to my design, then thoroughly reviewed and modified it to ensure it matched the intended behavior and best practices. Key architectural decisions included implementing the UI using a `TableLayoutPanel` for responsive layout and emphasizing the **separation of concerns** within the PowerShell functions.
+
+***
+
+## Technologies & Development
+
+[![PowerShell](https://img.shields.io/badge/PowerShell-5391FE?style=for-the-badge&logo=powershell&logoColor=white)](https://docs.microsoft.com/en-us/powershell/)
+[![Windows Forms](https://img.shields.io/badge/.NET%20Windows%20Forms-512BD4?style=for-the-badge&logo=.net)](https://docs.microsoft.com/en-us/dotnet/desktop/winforms/?view=netdesktop-6.0)
+[![JSON](https://img.shields.io/badge/Data%20Format-JSON-000000?style=for-the-badge&logo=json&logoColor=white)](https://www.json.org/)
+[![VS Code](https://img.shields.io/badge/Editor-VS%20Code-007ACC?style=for-the-badge&logo=visual-studio-code&logoColor=white)](https://code.visualstudio.com/) 
+[![ChatGPT Assisted](https://img.shields.io/badge/Code%20Assisted%20By-ChatGPT-6AA299?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/chatgpt)
+[![Claude AI Assisted](https://img.shields.io/badge/Code%20Assisted%20By-Claude%20AI-5437C0?style=for-the-badge)](https://www.claude.ai/)
+
+***
 ## Getting Started
 
-1. Clone the repository:
+1.  Download ZIP or Clone the repository:
 
-   ```powershell
-   git clone https://github.com/YourUsername/managing-portable-apps-powershell.git
-   ```
-2. Place your portable applications in subfolders and include `.app` JSON files describing each (with properties like `appName`, `appVersion`, `appStartMenuFolderName`, etc.).
-3. Place all `*.ps1` files in the root directory of your main portable apps and execute the script through the evaluated window.
-   ```
-   [Drive:]PortableAppsFolder/
-		├── App1Folder/
-		│   ├── SubFolder1/
-		│   ├── .app
-		│   └── App1.exe
-		├── App2Folder/
-		│   ├── .app
-		│   └── App2.exe
-		├── Manage-Portable-Apps.ps1
-		└── Create-.app-file.ps1
-   ```
-   
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File Manage-Portable-Apps.ps1
-   ```
-5. Use the UI: filter, select, view details, and perform actions such as adding/removing shortcuts or creating new `.app` wrappers.
+    ```powershell
+    git clone https://github.com/MrkTheCoder/managing-portable-apps-powershell.git
+    ```
+2.  Place your portable applications in subfolders and ensure each includes a **`.app` JSON file** describing the application (use the included `Create-.app-file.ps1` script to generate these).
 
----
+3.  Ensure all `*.ps*` files are in the root directory of your main portable apps folder. The expected structure is:
+
+    ```
+    [Drive:]PortableAppsFolder/
+    ├── App1Folder/
+    │   ├── SubFolder1/
+    │   ├── .app
+    │   └── App1.exe
+    ├── App2Folder/
+    │   ├── .app
+    │   └── App2.exe
+    ├── Manage-Portable-Apps.ps1
+    ├── Manage-Portable-Apps.UI.psm1
+    └── Create-.app-file.ps1
+    ```
+
+4.  Execute the main script from the PowerShell window:
+
+    ```powershell
+    powershell -ExecutionPolicy Bypass -File Manage-Portable-Apps.ps1
+    ```
+5.  Use the UI to filter, select, view details, and perform actions such as adding/removing shortcuts or creating new `.app` wrappers.
+
+***
 
 ## Contributing
 
 Contributions, bug reports, and enhancements are welcome. Please fork the project and submit a pull request. Maintain code consistency and update documentation as necessary.
 
----
+***
 
 ## License & Acknowledgements
 
-This script is provided *as-is*. Feel free to adapt or extend it for your portable-apps management workflow. Special thanks to the AI-assistants (code generation: ChatGPT + Claude.ai).
+This script is provided *as-is*. Feel free to adapt or extend it for your portable apps management workflow. Special thanks to the **AI-assistants** (code generation: ChatGPT + Claude.ai) for their instrumental role in the development process.
