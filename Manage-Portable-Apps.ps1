@@ -19,7 +19,7 @@
 
 # Script header data
 $scriptName = "Manage Portable Apps"
-$scriptVersion = "v0.26.202510 Alpha"
+$scriptVersion = "v0.41.202510 Beta"
 
 Write-Host "Running on PowerShell version: $($PSVersionTable.PSVersion)"
 Write-Host "Script: $($scriptName) $($scriptVersion)"
@@ -355,8 +355,10 @@ Write-Host "Found $($createdShortcuts.Count) created shortcuts in Start Menu fol
 # Portables folder: default to scriptDir\Portables (or change)
 # For development, you may override below
 $portablesRoot = Join-Path $scriptDir "Portables"
+# ------------------------------------------------------------------------
 # Uncomment for development override:
-$portablesRoot = "D:\Portables"
+#$portablesRoot = "D:\Portables"
+# ------------------------------------------------------------------------
 
 if (-not (Test-Path -LiteralPath $portablesRoot)) {
     Write-Host "Portables directory not found at '$($portablesRoot)'. Update the path and re-run." -ForegroundColor Red

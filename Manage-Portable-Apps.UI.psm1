@@ -3,7 +3,7 @@
     UI module for Manage Portable Apps - builds and shows the WinForms UI.
 
 .DESCRIPTION
-    Contains UI factories, panel builders, Set-FillTree, Update-ButtonStates,
+    Contains UI factories, panel builders, Set-FillTree, Update-MenuItemStates,
     Register-EventHandlers and exported Show-ManageUI function.
 
 .NOTES
@@ -118,7 +118,6 @@ function New-Form {
     $form.Size = New-Object System.Drawing.Size(850, 500)
     $form.StartPosition = "CenterScreen"
     $form.MinimumSize = $form.Size
-    $form.Padding = New-Object System.Windows.Forms.Padding(10)
     return $form
 }
 
@@ -366,13 +365,13 @@ function Set-FillTree {
 }
 
 # ----------------------------------------------------------------------
-# Update-ButtonStates: controls enabling/disabling of action buttons
+# Update-MenuItemStates: controls enabling/disabling of menu items
 # ----------------------------------------------------------------------
-function Update-ButtonStates {
+function Update-MenuItemStates {
     param(
         [Parameter(Mandatory)][System.Windows.Forms.TreeView] $Tree,
-        [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnAddShortcut,
-        [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnRemoveShortcut
+        [Parameter(Mandatory)][System.Windows.Forms.ToolStripMenuItem] $MenuAddShortcut,
+        [Parameter(Mandatory)][System.Windows.Forms.ToolStripMenuItem] $MenuRemoveShortcut
     )
 
     # Get checked nodes with Tag
@@ -395,7 +394,7 @@ function Update-ButtonStates {
             break
         }
     }
-    $BtnAddShortcut.Enabled = $hasItemsToAdd
+    $MenuAddShortcut.Enabled = $hasItemsToAdd
 
     $hasItemsToRemove = $false
     foreach ($app in $checkedApps) {
@@ -404,12 +403,73 @@ function Update-ButtonStates {
             break
         }
     }
-    $BtnRemoveShortcut.Enabled = $hasItemsToRemove
+    $MenuRemoveShortcut.Enabled = $hasItemsToRemove
 }
 
 # ----------------------------------------------------------------------
 # Build panel helper functions: return small hashtable of relevant controls
 # ----------------------------------------------------------------------
+
+function Build-MenuStrip {
+    $menuStrip = New-Object System.Windows.Forms.MenuStrip
+    $menuStrip.Dock = [System.Windows.Forms.DockStyle]::Top
+
+    # File Menu
+    $menuFile = New-Object System.Windows.Forms.ToolStripMenuItem
+    $menuFile.Text = "&File"
+
+    $menuAddShortcut = New-Object System.Windows.Forms.ToolStripMenuItem
+    $menuAddShortcut.Text = "&Add or Update Selected Shortcuts"
+    $menuAddShortcut.ShortcutKeys = [System.Windows.Forms.Keys]::Control -bor [System.Windows.Forms.Keys]::A
+    $menuAddShortcut.Enabled = $false
+
+    $menuRemoveShortcut = New-Object System.Windows.Forms.ToolStripMenuItem
+    $menuRemoveShortcut.Text = "&Remove Selected Shortcuts"
+    $menuRemoveShortcut.ShortcutKeys = [System.Windows.Forms.Keys]::Control -bor [System.Windows.Forms.Keys]::R
+    $menuRemoveShortcut.Enabled = $false
+
+    $menuSeparator1 = New-Object System.Windows.Forms.ToolStripSeparator
+
+    $menuCreateApp = New-Object System.Windows.Forms.ToolStripMenuItem
+    $menuCreateApp.Text = "&Create '.app' file"
+    $menuCreateApp.ShortcutKeys = [System.Windows.Forms.Keys]::Control -bor [System.Windows.Forms.Keys]::N
+
+    $menuSeparator2 = New-Object System.Windows.Forms.ToolStripSeparator
+
+    $menuExit = New-Object System.Windows.Forms.ToolStripMenuItem
+    $menuExit.Text = "E&xit"
+    $menuExit.ShortcutKeys = [System.Windows.Forms.Keys]::Alt -bor [System.Windows.Forms.Keys]::F4
+
+    $menuFile.DropDownItems.Add($menuAddShortcut) | Out-Null
+    $menuFile.DropDownItems.Add($menuRemoveShortcut) | Out-Null
+    $menuFile.DropDownItems.Add($menuSeparator1) | Out-Null
+    $menuFile.DropDownItems.Add($menuCreateApp) | Out-Null
+    $menuFile.DropDownItems.Add($menuSeparator2) | Out-Null
+    $menuFile.DropDownItems.Add($menuExit) | Out-Null
+
+    # Help Menu
+    $menuHelp = New-Object System.Windows.Forms.ToolStripMenuItem
+    $menuHelp.Text = "&Help"
+
+    $menuAbout = New-Object System.Windows.Forms.ToolStripMenuItem
+    $menuAbout.Text = "&About"
+    $menuAbout.ShortcutKeys = [System.Windows.Forms.Keys]::F1
+
+    $menuHelp.DropDownItems.Add($menuAbout) | Out-Null
+
+    $menuStrip.Items.Add($menuFile) | Out-Null
+    $menuStrip.Items.Add($menuHelp) | Out-Null
+
+    return @{
+        MenuStrip          = $menuStrip
+        MenuAddShortcut    = $menuAddShortcut
+        MenuRemoveShortcut = $menuRemoveShortcut
+        MenuCreateApp      = $menuCreateApp
+        MenuExit           = $menuExit
+        MenuAbout          = $menuAbout
+    }
+}
+
 function Build-TopBar {
     param([System.Windows.Forms.ImageList] $ImgList)
 
@@ -432,15 +492,9 @@ function Build-LeftPanel {
 }
 
 function Build-BottomPanel {
-    $btnCreateAppFile = New-Button "Create '.app' file"
-    $btnRemoveShortcut = New-Button "Remove Shortcut"
-    $btnAddShortcut = New-Button "Add Shortcut"
     $btnExit = New-Button "Exit"
     return @{
-        BtnCreateAppFile  = $btnCreateAppFile
-        BtnRemoveShortcut = $btnRemoveShortcut
-        BtnAddShortcut    = $btnAddShortcut
-        BtnExit           = $btnExit
+        BtnExit = $btnExit
     }
 }
 
@@ -452,6 +506,7 @@ function Build-MainLayout {
         [string] $Title,
         $Icon,
         [System.Windows.Forms.ImageList] $ImgList,
+        [hashtable] $MenuStripInfo,
         [hashtable] $TopBar,
         [hashtable] $LeftPanel,
         [System.Windows.Forms.TextBox] $TxtDetails,
@@ -459,29 +514,48 @@ function Build-MainLayout {
     )
 
     $form = New-Form -title $Title -icon $Icon
+    $form.Padding = New-Object System.Windows.Forms.Padding(0)
+        
+    # Add MenuStrip to form
+    $form.MainMenuStrip = $MenuStripInfo.MenuStrip
 
-    # Main layout
+    $MenuStripInfo.MenuStrip.Margin = New-Object System.Windows.Forms.Padding(0)
+
+    # Main layout (3 rows now)
     $mainLayout = New-Object System.Windows.Forms.TableLayoutPanel
     $mainLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $mainLayout.CellBorderStyle = [System.Windows.Forms.TableLayoutPanelCellBorderStyle]::None
+    $mainLayout.Margin = New-Object System.Windows.Forms.Padding(0)
+    # ----------------------------------------------------------------------
     $mainLayout.ColumnCount = 1
-    $mainLayout.RowCount = 3
+    $mainLayout.RowCount = 4
+    # ----------------------------------------------------------------------
+    # FIX IS HERE: Padding (Left, Top, Right, Bottom) - set Top to 0
+    #$mainLayout.Padding = New-Object System.Windows.Forms.Padding(10, 0, 10, 10) 
+    # ----------------------------------------------------------------------
+    # Row Styles:
+    # 1. MenuStrip (height: 25-30 is typical for a menu strip)
+    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 27))) | Out-Null
+    # 2. TopBar (Filter controls)
     $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 35))) | Out-Null
+    # 3. Content (Tree and Details)
     $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
+    # 4. BottomPanel (Exit button)
     $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 45))) | Out-Null
 
-    # TopBar table
+
+
+    # TopBar table (filter only now)
     $topBarLayout = New-Object System.Windows.Forms.TableLayoutPanel
     $topBarLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $topBarLayout.ColumnCount = 4
+    $topBarLayout.ColumnCount = 3
     $topBarLayout.RowCount = 1
     $topBarLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::AutoSize))) | Out-Null
     $topBarLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 200))) | Out-Null
     $topBarLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
-    $topBarLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90))) | Out-Null
 
     $topBarLayout.Controls.Add($TopBar.Label, 0, 0)
     $topBarLayout.Controls.Add($TopBar.CmbFilter, 1, 0)
-    $topBarLayout.Controls.Add($TopBar.BtnAbout, 3, 0)
 
     # Content layout
     $contentLayout = New-Object System.Windows.Forms.TableLayoutPanel
@@ -518,44 +592,40 @@ function Build-MainLayout {
     $contentLayout.Controls.Add($leftPanelLayout, 0, 0)
     $contentLayout.Controls.Add($TxtDetails, 1, 0)
 
-    # Bottom buttons layout
+    # Bottom buttons layout (only Exit button now)
     $bottomButtonsLayout = New-Object System.Windows.Forms.TableLayoutPanel
     $bottomButtonsLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $bottomButtonsLayout.ColumnCount = 5
+    $bottomButtonsLayout.ColumnCount = 2
     $bottomButtonsLayout.RowCount = 1
     $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
-    $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 140))) | Out-Null
-    $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 140))) | Out-Null
-    $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 120))) | Out-Null
     $bottomButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90))) | Out-Null
 
-    $bottomButtonsLayout.Controls.Add($BottomPanel.BtnCreateAppFile, 1, 0)
-    $bottomButtonsLayout.Controls.Add($BottomPanel.BtnRemoveShortcut, 2, 0)
-    $bottomButtonsLayout.Controls.Add($BottomPanel.BtnAddShortcut, 3, 0)
-    $bottomButtonsLayout.Controls.Add($BottomPanel.BtnExit, 4, 0)
+    $bottomButtonsLayout.Controls.Add($BottomPanel.BtnExit, 1, 0)
 
     # Add rows to main
-    $mainLayout.Controls.Add($topBarLayout, 0, 0)
-    $mainLayout.Controls.Add($contentLayout, 0, 1)
-    $mainLayout.Controls.Add($bottomButtonsLayout, 0, 2)
+    $mainLayout.Controls.Add($MenuStripInfo.MenuStrip, 0, 0) # <--- New: MenuStrip in Row 0
+    $mainLayout.Controls.Add($topBarLayout, 0, 1)          # <--- Row 1
+    $mainLayout.Controls.Add($contentLayout, 0, 2)         # <--- Row 2
+    $mainLayout.Controls.Add($bottomButtonsLayout, 0, 3)   # <--- Row 3
 
     $form.Controls.Add($mainLayout)
 
     # Return controls of interest
     return @{
-        Form              = $form
-        Tree              = $LeftPanel.Tree
-        CmbFilter         = $TopBar.CmbFilter
-        Txt               = $TxtDetails
-        BtnSelectAll      = $LeftPanel.BtnSelectAll
-        BtnUnselectAll    = $LeftPanel.BtnUnselectAll
-        BtnInvert         = $LeftPanel.BtnInvert
-        BtnCreateAppFile  = $BottomPanel.BtnCreateAppFile
-        BtnRemoveShortcut = $BottomPanel.BtnRemoveShortcut
-        BtnAddShortcut    = $BottomPanel.BtnAddShortcut
-        BtnAbout          = $TopBar.BtnAbout
-        BtnExit           = $BottomPanel.BtnExit
-        ImgList           = $ImgList
+        Form               = $form
+        Tree               = $LeftPanel.Tree
+        CmbFilter          = $TopBar.CmbFilter
+        Txt                = $TxtDetails
+        BtnSelectAll       = $LeftPanel.BtnSelectAll
+        BtnUnselectAll     = $LeftPanel.BtnUnselectAll
+        BtnInvert          = $LeftPanel.BtnInvert
+        MenuAddShortcut    = $MenuStripInfo.MenuAddShortcut
+        MenuRemoveShortcut = $MenuStripInfo.MenuRemoveShortcut
+        MenuCreateApp      = $MenuStripInfo.MenuCreateApp
+        MenuAbout          = $MenuStripInfo.MenuAbout
+        MenuExit           = $MenuStripInfo.MenuExit
+        BtnExit            = $BottomPanel.BtnExit
+        ImgList            = $ImgList
     }
 }
 
@@ -573,10 +643,11 @@ function Register-EventHandlers {
         [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnSelectAll,
         [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnUnselectAll,
         [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnInvert,
-        [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnAddShortcut,
-        [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnRemoveShortcut,
-        [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnCreateAppFile,
-        [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnAbout,
+        [Parameter(Mandatory)][System.Windows.Forms.ToolStripMenuItem] $MenuAddShortcut,
+        [Parameter(Mandatory)][System.Windows.Forms.ToolStripMenuItem] $MenuRemoveShortcut,
+        [Parameter(Mandatory)][System.Windows.Forms.ToolStripMenuItem] $MenuCreateApp,
+        [Parameter(Mandatory)][System.Windows.Forms.ToolStripMenuItem] $MenuAbout,
+        [Parameter(Mandatory)][System.Windows.Forms.ToolStripMenuItem] $MenuExit,
         [Parameter(Mandatory)][System.Windows.Forms.Button] $BtnExit,
         [Parameter(Mandatory)][object[]] $AppWrappers,
         [Parameter(Mandatory)][System.Windows.Forms.ImageList] $ImgList
@@ -585,7 +656,7 @@ function Register-EventHandlers {
     # Filter change: use new-closure to capture current variables
     $sbFilter = {
         Set-FillTree -Tree $Tree -AppWrappers $AppWrappers -ImgList $ImgList -Filter $CmbFilter.SelectedItem
-        Update-ButtonStates -Tree $Tree -BtnAddShortcut $BtnAddShortcut -BtnRemoveShortcut $BtnRemoveShortcut
+        Update-MenuItemStates -Tree $Tree -MenuAddShortcut $MenuAddShortcut -MenuRemoveShortcut $MenuRemoveShortcut
     }.GetNewClosure()
     $CmbFilter.Add_SelectedIndexChanged($sbFilter)
 
@@ -607,7 +678,7 @@ function Register-EventHandlers {
             foreach ($c in $e.Node.Nodes) { $c.Checked = $e.Node.Checked }
             Update-ParentCheckState $e.Node
         }
-        Update-ButtonStates -Tree $Tree -BtnAddShortcut $BtnAddShortcut -BtnRemoveShortcut $BtnRemoveShortcut
+        Update-MenuItemStates -Tree $Tree -MenuAddShortcut $MenuAddShortcut -MenuRemoveShortcut $MenuRemoveShortcut
     }.GetNewClosure()
     $Tree.Add_AfterCheck($sbAfterCheck)
 
@@ -615,39 +686,39 @@ function Register-EventHandlers {
     $sbSelectAll = {
         Set-AllTreeNodesChecked $Tree.Nodes $true
         foreach ($n in $Tree.Nodes) { Update-ParentCheckState $n }
-        Update-ButtonStates -Tree $Tree -BtnAddShortcut $BtnAddShortcut -BtnRemoveShortcut $BtnRemoveShortcut
+        Update-MenuItemStates -Tree $Tree -MenuAddShortcut $MenuAddShortcut -MenuRemoveShortcut $MenuRemoveShortcut
     }.GetNewClosure()
     $BtnSelectAll.Add_Click($sbSelectAll)
 
     $sbUnselectAll = {
         Set-AllTreeNodesChecked $Tree.Nodes $false
         foreach ($n in $Tree.Nodes) { Update-ParentCheckState $n }
-        Update-ButtonStates -Tree $Tree -BtnAddShortcut $BtnAddShortcut -BtnRemoveShortcut $BtnRemoveShortcut
+        Update-MenuItemStates -Tree $Tree -MenuAddShortcut $MenuAddShortcut -MenuRemoveShortcut $MenuRemoveShortcut
     }.GetNewClosure()
     $BtnUnselectAll.Add_Click($sbUnselectAll)
 
     $sbInvert = {
         Set-ToggleTreeNodeSelection $Tree.Nodes
         foreach ($n in $Tree.Nodes) { Update-ParentCheckState $n }
-        Update-ButtonStates -Tree $Tree -BtnAddShortcut $BtnAddShortcut -BtnRemoveShortcut $BtnRemoveShortcut
+        Update-MenuItemStates -Tree $Tree -MenuAddShortcut $MenuAddShortcut -MenuRemoveShortcut $MenuRemoveShortcut
     }.GetNewClosure()
     $BtnInvert.Add_Click($sbInvert)
 
-    # Action buttons - TODO: these should call out to main script functions (dot-sourced)
+    # Action menu items - TODO: these should call out to main script functions (dot-sourced)
     $sbAdd = {
         [System.Windows.Forms.MessageBox]::Show("Add Shortcut functionality will be implemented by main script.", "Add Shortcut", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
     }.GetNewClosure()
-    $BtnAddShortcut.Add_Click($sbAdd)
+    $MenuAddShortcut.Add_Click($sbAdd)
 
     $sbRemove = {
         [System.Windows.Forms.MessageBox]::Show("Remove Shortcut functionality will be implemented by main script.", "Remove Shortcut", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
     }.GetNewClosure()
-    $BtnRemoveShortcut.Add_Click($sbRemove)
+    $MenuRemoveShortcut.Add_Click($sbRemove)
 
     $sbCreate = {
         [System.Windows.Forms.MessageBox]::Show("Create '.app' file functionality will be implemented by main script.", "Create .app File", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
     }.GetNewClosure()
-    $BtnCreateAppFile.Add_Click($sbCreate)
+    $MenuCreateApp.Add_Click($sbCreate)
 
     # About: show brief info (capturing $scriptVersion is optional; if not present will be blank)
     $sbAbout = {
@@ -665,9 +736,10 @@ function Register-EventHandlers {
             [System.Windows.Forms.MessageBoxIcon]::Information
         )
     }.GetNewClosure()
-    $BtnAbout.Add_Click($sbAbout)
+    $MenuAbout.Add_Click($sbAbout)
 
     $sbExit = { $Form.Close() }.GetNewClosure()
+    $MenuExit.Add_Click($sbExit)
     $BtnExit.Add_Click($sbExit)
 }
 
@@ -740,19 +812,20 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
     $topBar = Build-TopBar -ImgList $imgList
     $leftPanel = Build-LeftPanel -ImgList $imgList
     $bottomPanel = Build-BottomPanel
+    $menuStrip = Build-MenuStrip
     $txtDetails = New-DetailsTextBox
 
-    $layoutInfo = Build-MainLayout -Title $Title -Icon $FormIcon -ImgList $imgList -TopBar $topBar -LeftPanel $leftPanel -TxtDetails $txtDetails -BottomPanel $bottomPanel
+    $layoutInfo = Build-MainLayout -Title $Title -Icon $FormIcon -ImgList $imgList -MenuStripInfo $menuStrip -TopBar $topBar -LeftPanel $leftPanel -TxtDetails $txtDetails -BottomPanel $bottomPanel
 
     # Wire events (use GetNewClosure in Register-EventHandlers)
     Register-EventHandlers -Form $layoutInfo.Form -Tree $layoutInfo.Tree -CmbFilter $layoutInfo.CmbFilter -Txt $layoutInfo.Txt `
         -BtnSelectAll $layoutInfo.BtnSelectAll -BtnUnselectAll $layoutInfo.BtnUnselectAll -BtnInvert $layoutInfo.BtnInvert `
-        -BtnAddShortcut $layoutInfo.BtnAddShortcut -BtnRemoveShortcut $layoutInfo.BtnRemoveShortcut -BtnCreateAppFile $layoutInfo.BtnCreateAppFile `
-        -BtnAbout $layoutInfo.BtnAbout -BtnExit $layoutInfo.BtnExit -AppWrappers $appWrappers -ImgList $imgList
+        -MenuAddShortcut $layoutInfo.MenuAddShortcut -MenuRemoveShortcut $layoutInfo.MenuRemoveShortcut -MenuCreateApp $layoutInfo.MenuCreateApp `
+        -MenuAbout $layoutInfo.MenuAbout -MenuExit $layoutInfo.MenuExit -BtnExit $layoutInfo.BtnExit -AppWrappers $appWrappers -ImgList $imgList
 
     # Initial populate & button state
     Set-FillTree -Tree $layoutInfo.Tree -AppWrappers $appWrappers -ImgList $imgList -Filter $layoutInfo.CmbFilter.SelectedItem
-    Update-ButtonStates -Tree $layoutInfo.Tree -BtnAddShortcut $layoutInfo.BtnAddShortcut -BtnRemoveShortcut $layoutInfo.BtnRemoveShortcut
+    Update-MenuItemStates -Tree $layoutInfo.Tree -MenuAddShortcut $layoutInfo.MenuAddShortcut -MenuRemoveShortcut $layoutInfo.MenuRemoveShortcut
 
     # Show dialog
     [void]$layoutInfo.Form.ShowDialog()
@@ -765,4 +838,4 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
 # ==============================================
 # Exported entry point
 # ==============================================
-Export-ModuleMember -Function Show-ManageUI, Register-EventHandlers, Set-FillTree, Update-ButtonStates, Update-ParentCheckState, Update-DetailsTextBox, Get-IconFromFile, Get-FirstIcon, Set-AllTreeNodesChecked, Set-ToggleTreeNodeSelection
+Export-ModuleMember -Function Show-ManageUI, Register-EventHandlers, Set-FillTree, Update-MenuItemStates, Update-ParentCheckState, Update-DetailsTextBox, Get-IconFromFile, Get-FirstIcon, Set-AllTreeNodesChecked, Set-ToggleTreeNodeSelection
