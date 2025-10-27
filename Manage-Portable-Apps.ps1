@@ -19,7 +19,7 @@
 
 # Script header data
 $scriptName = "Manage Portable Apps"
-$scriptVersion = "v0.41.202510 Beta"
+$scriptVersion = "v0.61.202510 Beta"
 
 Write-Host "Running on PowerShell version: $($PSVersionTable.PSVersion)"
 Write-Host "Script: $($scriptName) $($scriptVersion)"
@@ -357,7 +357,7 @@ Write-Host "Found $($createdShortcuts.Count) created shortcuts in Start Menu fol
 $portablesRoot = Join-Path $scriptDir "Portables"
 # ------------------------------------------------------------------------
 # Uncomment for development override:
-#$portablesRoot = "D:\Portables"
+# $portablesRoot = "D:\Portables"
 # ------------------------------------------------------------------------
 
 if (-not (Test-Path -LiteralPath $portablesRoot)) {
@@ -381,25 +381,25 @@ foreach ($f in $appFiles) {
 
     # --- Added logic moved from Populate-Tree ---
     # Shortcut info
+    $wrapper | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $false -Force
+    $wrapper | Add-Member -NotePropertyName ShortcutPath -NotePropertyValue $null -Force
+    $wrapper | Add-Member -NotePropertyName ShortcutUserType -NotePropertyValue $null -Force
+    $wrapper | Add-Member -NotePropertyName ShortcutAppVersion -NotePropertyValue $null -Force
+    $wrapper | Add-Member -NotePropertyName IsBothSame -NotePropertyValue $false -Force
+
     $m = $createdShortcuts | Where-Object { $_.ShortcutAppName -eq $wrapper.appName }
     if ($m) {
-        $wrapper | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $true -Force
-        $wrapper | Add-Member -NotePropertyName ShortcutUserType -NotePropertyValue $m.ShortcutUserType -Force
-        $wrapper | Add-Member -NotePropertyName ShortcutAppVersion -NotePropertyValue $m.ShortcutAppVersion -Force
-
+        $wrapper.HasShortcut = $true 
+        $wrapper.ShortcutUserType = $m.ShortcutUserType 
+        $wrapper.ShortcutAppVersion = $m.ShortcutAppVersion
+        $wrapper.ShortcutPath = $m.ShortcutPath
         try {
             $portableHash = Get-FileHashCompat -Path $wrapper.AppFilePath -Algorithm MD5
             $shortcutAppPath = Join-Path $m.ShortcutPath ".app"
             $shortcutHash = Get-FileHashCompat -Path $shortcutAppPath -Algorithm MD5
-            $wrapper | Add-Member -NotePropertyName IsBothSame -NotePropertyValue ($portableHash -eq $shortcutHash) -Force
+            $wrapper.IsBothSame = ($portableHash -eq $shortcutHash) 
         }
-        catch {
-            $wrapper | Add-Member -NotePropertyName IsBothSame -NotePropertyValue $false -Force
-        }
-    }
-    else {
-        $wrapper | Add-Member -NotePropertyName HasShortcut -NotePropertyValue $false -Force
-        $wrapper | Add-Member -NotePropertyName IsBothSame -NotePropertyValue $false -Force
+        catch { }
     }
 
     # Registry detection for installation

@@ -107,6 +107,29 @@ function Get-FirstIcon {
     }
 }
 
+
+function Get-CheckedNodes {
+    param (
+        [Parameter(Mandatory = $true)]
+        [System.Collections.ArrayList]$nodes,
+
+        [Parameter(Mandatory = $true)]
+        [System.Collections.ArrayList]$checkedApps
+    )
+
+    foreach ($node in $nodes) {
+        if ($node.Checked -and $node.Tag) { 
+            [void]$checkedApps.Add($node.Tag) 
+        }
+        if ($node.Nodes.Count -gt 0) { 
+            # Recursively process the child nodes
+            $checkedApps = Get-CheckedNodes -nodes $node.Nodes -checkedApps $checkedApps
+        }
+    }
+
+    return $checkedApps
+}
+
 # ----------------------------------------------------------------------
 # Small UI factories (kept small and reused)
 # ----------------------------------------------------------------------
@@ -704,16 +727,259 @@ function Register-EventHandlers {
     }.GetNewClosure()
     $BtnInvert.Add_Click($sbInvert)
 
-    # Action menu items - TODO: these should call out to main script functions (dot-sourced)
     $sbAdd = {
-        [System.Windows.Forms.MessageBox]::Show("Add Shortcut functionality will be implemented by main script.", "Add Shortcut", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        # --- Step 1: Prompt the user for target type ---
+        $choice = [System.Windows.Forms.MessageBox]::Show(
+            "Where do you want to create portable shortcuts?" + [Environment]::NewLine +
+            [Environment]::NewLine +
+            "Yes = All Users" + [Environment]::NewLine +
+            "No = Current User" + [Environment]::NewLine +
+            "Cancel = Abort",
+            "Select Target User Type",
+            [System.Windows.Forms.MessageBoxButtons]::YesNoCancel,
+            [System.Windows.Forms.MessageBoxIcon]::Question
+        )
+
+        switch ($choice) {
+            'Yes' { $TargetUserType = 'AllUsers' }
+            'No' { $TargetUserType = 'CurrentUser' }
+            Default {
+                [System.Windows.Forms.MessageBox]::Show("Operation cancelled by user.", "Cancelled", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+                return
+            }
+        }
+
+        # --- Step 2: Retrieve all selected nodes from the TreeView ---
+        # Get checked nodes with Tag
+        $SelectedNodes = New-Object System.Collections.ArrayList
+
+        function Get-CheckedNodes {
+            param($nodes)
+            foreach ($node in $nodes) {
+                if ($node.Checked -and $node.Tag) { [void]$SelectedNodes.Add($node.Tag) }
+                if ($node.Nodes.Count -gt 0) { Get-CheckedNodes $node.Nodes }
+            }
+        }
+        Get-CheckedNodes $Tree.Nodes
+        if (-not $SelectedNodes -or $SelectedNodes.Count -eq 0) {
+            [System.Windows.Forms.MessageBox]::Show("Please select one or more portable apps to create shortcuts for.", "No Selection", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning)
+            return
+        }
+
+        # --- Step 3: Define Start Menu base paths ---
+        $StartMenuPaths = @{
+            'AllUsers'    = "$Env:ProgramData\Microsoft\Windows\Start Menu\Programs"
+            'CurrentUser' = "$Env:AppData\Microsoft\Windows\Start Menu\Programs"
+        }
+
+        $TargetBasePath = $StartMenuPaths[$TargetUserType]
+
+        # --- Step 4: Process each selected node ---
+        foreach ($node in $SelectedNodes) {
+            $appName = $node.appName
+            $appFolderName = $node.appStartMenuFolderName
+            $appFilePath = $node.AppFilePath
+            $hasShortcut = $node.HasShortcut
+            $isBothSame = $node.IsBothSame
+            $shortcutUserType = $node.ShortcutUserType
+            $shortcuts = $node.shortcuts
+
+            # Skip invalid nodes
+            if (-not $appFilePath -or -not (Test-Path $appFilePath)) {
+                Write-Warning "Skipping invalid app entry for '$appName' (missing AppFilePath)"
+                continue
+            }
+            # Skip if same shortcuts already exists
+            if ($isBothSame -and ($shortcutUserType -eq $TargetUserType)) {
+                Write-Warning "Skipping creating shortcut for '$appName' (It's already exist!)"
+                continue
+            }
+
+
+            # --- Step 5: Remove old shortcuts if they exist ---
+            if ($hasShortcut) {
+                $oldShortcutPath = $node.ShortcutPath
+                if (Test-Path $oldShortcutPath) {
+                    try {
+                        Remove-Item -Path $oldShortcutPath -Recurse -Force
+                        Write-Host "Removed old shortcuts for '$appName' from $shortcutUserType" -ForegroundColor Green
+                    }
+                    catch {
+                        Write-Warning "Failed to remove old shortcut folder for '$appName': $_"
+                    }
+                }
+            }
+
+            # --- Step 6: Create new Start Menu folder ---
+            $targetFolder = Join-Path $TargetBasePath $appFolderName
+            if (-not (Test-Path $targetFolder)) {
+                New-Item -ItemType Directory -Path $targetFolder -Force | Out-Null
+            }
+
+            # --- Step 7: Generate new shortcuts ---
+            # Helper: Replace placeholder and return cleaned value
+            function Replace-AppPathPlaceholder {
+                param(
+                    [string]$value,
+                    [string]$appDir
+                )
+                if (-not [string]::IsNullOrEmpty($value) -and $value -like "*[.app_path]*") {
+                    return $value.Replace("[.app_path]", $appDir)
+                }
+                return $value
+            }
+
+            $appDir = Split-Path $appFilePath -Parent
+            foreach ($shortcut in $shortcuts) {
+                $lnkPath = Join-Path $targetFolder ("$($shortcut.Name).lnk")
+
+                $shell = New-Object -ComObject WScript.Shell
+                $lnk = $shell.CreateShortcut($lnkPath)
+                $lnk.TargetPath = Replace-AppPathPlaceholder $shortcut.Target $appDir
+                if ($shortcut.Arguments) { $lnk.Arguments = Replace-AppPathPlaceholder $shortcut.Arguments $appDir }
+                if ($shortcut.WorkingDirectory) { $lnk.WorkingDirectory = Replace-AppPathPlaceholder $shortcut.WorkingDirectory $appDir }
+                if ($shortcut.IconPath) { $lnk.IconLocation = $shortcut.IconPath }
+                $lnk.Save()
+
+                Write-Host "Created shortcut: $lnkPath" -ForegroundColor Green
+            }
+
+            # Copy .app marker file
+            try {
+                Copy-Item -Path $appFilePath -Destination $targetFolder -Force
+            }
+            catch {
+                Write-Warning "Failed to copy .app file for $($appName): $_"
+            }
+
+            # --- Step 8: Update node properties ---
+            # Helper: find a TreeNode by AppFilePath in the whole TreeView
+            function Find-TreeNodeByAppFilePath {
+                param(
+                    [System.Windows.Forms.TreeNodeCollection] $Nodes,
+                    [string] $appFilePath
+                )
+                foreach ($node in $Nodes) {
+                    if ($node.Tag.AppFilePath -eq $appFilePath) {
+                        return $node
+                    }
+                    if ($node.Nodes.Count -gt 0) {
+                        $found = Find-TreeNodeByAppFilePath -Nodes $node.Nodes -appFilePath $appFilePath
+                        if ($found) {
+                            return $found
+                        }
+                    }
+                }
+                return $null
+            }
+
+            # Then replace your loop with:
+            $treeNode = Find-TreeNodeByAppFilePath -Nodes $Tree.Nodes -appFilePath $node.AppFilePath
+            if ($treeNode) {
+                $treeNode.Tag.HasShortcut = $true
+                $treeNode.Tag.IsBothSame = $true
+                $treeNode.Tag.ShortcutAppVersion = $node.appVersion
+                $treeNode.Tag.ShortcutUserType = $TargetUserType
+
+                $treeNode.ImageKey = 'startMenu'
+                $treeNode.SelectedImageKey = 'startMenu'
+            }
+
+        }
+
+        Set-AllTreeNodesChecked $Tree.Nodes $false
+        foreach ($n in $Tree.Nodes) { Update-ParentCheckState $n }
+        Update-MenuItemStates -Tree $Tree -MenuAddShortcut $MenuAddShortcut -MenuRemoveShortcut $MenuRemoveShortcut
+        
+        # --- Step 9: Notify completion ---
+        [System.Windows.Forms.MessageBox]::Show("Shortcuts have been successfully created or updated.", "Success", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
     }.GetNewClosure()
     $MenuAddShortcut.Add_Click($sbAdd)
 
+    # Action menu items - TODO: these should call out to main script functions (dot-sourced)
+    # Remove Shortcut handler
     $sbRemove = {
-        [System.Windows.Forms.MessageBox]::Show("Remove Shortcut functionality will be implemented by main script.", "Remove Shortcut", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        # Ask for confirmation
+        $response = [System.Windows.Forms.MessageBox]::Show(
+            "Are you sure you want to remove the shortcut(s) for the selected app(s)?",
+            "Confirm Removal",
+            [System.Windows.Forms.MessageBoxButtons]::YesNo,
+            [System.Windows.Forms.MessageBoxIcon]::Question
+        )
+
+        if ($response -ne [System.Windows.Forms.DialogResult]::Yes) {
+            # User cancelled
+            return
+        }
+
+        # Gather checked nodes
+        $checkedApps = New-Object System.Collections.ArrayList
+        function Get-CheckedNodes {
+            param($nodes)
+            foreach ($node in $nodes) {
+                if ($node.Checked -and $node.Tag) {
+                    [void]$checkedApps.Add($node)
+                }
+                if ($node.Nodes.Count -gt 0) {
+                    Get-CheckedNodes $node.Nodes
+                }
+            }
+        }
+        Get-CheckedNodes $Tree.Nodes
+
+        if ($checkedApps.Count -eq 0) {
+            [System.Windows.Forms.MessageBox]::Show(
+                "No applications selected for removal of shortcuts.",
+                "Nothing to Remove",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Information
+            )
+            return
+        }
+
+        # Process each selected node
+        foreach ($node in $checkedApps) {
+            $wrapper = $node.Tag
+            if ($wrapper.HasShortcut -and $wrapper.ShortcutPath) {
+                try {
+                    if (Test-Path -LiteralPath $wrapper.ShortcutPath) {
+                        Remove-Item -LiteralPath $wrapper.ShortcutPath -Recurse -Force -ErrorAction Stop
+                        Write-Host "Removed shortcut folder: $($wrapper.ShortcutPath)" -ForegroundColor Green
+                    }
+                    else {
+                        Write-Host "Shortcut folder not found: $($wrapper.ShortcutPath)" -ForegroundColor Red
+                    }
+
+                    # Update wrapper properties
+                    $wrapper.HasShortcut = $false
+                    $wrapper.ShortcutUserType = $null
+                    $wrapper.IsBothSame = $false
+                    $wrapper.ShortcutAppVersion = $null
+                    $wrapper.ShortcutPath = $null
+                    # Update UI node
+                    $node.ImageKey = 'portable'
+                    $node.SelectedImageKey = 'portable'
+                }
+                catch {
+                    Write-Warning "Failed to remove shortcut folder for '$($wrapper.appName)': $_"
+                }
+            }
+        }
+        
+        Set-AllTreeNodesChecked $Tree.Nodes $false
+        foreach ($n in $Tree.Nodes) { Update-ParentCheckState $n }
+        Update-MenuItemStates -Tree $Tree -MenuAddShortcut $MenuAddShortcut -MenuRemoveShortcut $MenuRemoveShortcut
+        
+        [System.Windows.Forms.MessageBox]::Show(
+            "Selected shortcuts have been removed.",
+            "Removal Complete",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Information
+        )
     }.GetNewClosure()
+
     $MenuRemoveShortcut.Add_Click($sbRemove)
+
 
     $sbCreate = {
         [System.Windows.Forms.MessageBox]::Show("Create '.app' file functionality will be implemented by main script.", "Create .app File", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)

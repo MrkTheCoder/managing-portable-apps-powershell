@@ -1,3 +1,7 @@
 # Ignore these directory
 /OtherCodeSamples/
+/.vscode/
 
+# Ignore these files
+Get-ShortcutProperties.ps1
+Set-ShortcutProperties.ps1
