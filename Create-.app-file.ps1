@@ -197,7 +197,7 @@ function New-Label {
     $label.Text = $Text
     $label.AutoSize = $true
     $label.Anchor = $Anchor
-    $label.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $label.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
     $label.Margin = New-Object System.Windows.Forms.Padding(3, 8, 3, 3)
     return $label
 }
@@ -217,6 +217,7 @@ function New-TextBox {
     if ($Multiline) {
         $textBox.Height = $Height
         $textBox.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+        $textBox.Anchor = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right -bor [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom
     }
     $textBox.Margin = New-Object System.Windows.Forms.Padding(3)
     return $textBox
@@ -231,7 +232,9 @@ function New-InfoIcon {
     $icon.ForeColor = [System.Drawing.Color]::DodgerBlue
     $icon.AutoSize = $true
     $icon.Cursor = [System.Windows.Forms.Cursors]::Help
-    $icon.Margin = New-Object System.Windows.Forms.Padding(5, 8, 3, 3)
+    $icon.Anchor = [System.Windows.Forms.AnchorStyles]::Left
+    $icon.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $icon.Margin = New-Object System.Windows.Forms.Padding(3, 0, 3, 0)
     
     $tooltip = New-Object System.Windows.Forms.ToolTip
     $tooltip.SetToolTip($icon, $TooltipText)
@@ -273,12 +276,39 @@ function New-ActionButton {
 
 #region GUI Layout Construction
 
+function Build-InputRowLayout {
+    param(
+        [bool]$HasExtraControl = $false
+    )
+    
+    $subLayout = New-Object System.Windows.Forms.TableLayoutPanel
+    $subLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $subLayout.RowCount = 1
+    $subLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
+    $subLayout.Margin = New-Object System.Windows.Forms.Padding(0)
+    
+    # Base columns: Input (stretches) | Icon (fixed 30px)
+    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null # Input Control
+    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 30))) | Out-Null  # Info Icon
+    
+    if ($HasExtraControl) {
+        # Add a third column for the Browse button
+        $subLayout.ColumnCount = 3
+        $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90))) | Out-Null # Extra Control (Button)
+    }
+    else {
+        $subLayout.ColumnCount = 2
+    }
+    
+    return $subLayout
+}
+
 function Build-FormLayout {
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "Create .app File"
-    $form.Size = New-Object System.Drawing.Size(700, 600)
+    $form.Size = New-Object System.Drawing.Size(700, 560)
     $form.StartPosition = "CenterScreen"
-    $form.MinimumSize = New-Object System.Drawing.Size(650, 550)
+    $form.MinimumSize = New-Object System.Drawing.Size(650, 500)
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::Sizable
     $form.MaximizeBox = $true
     
@@ -289,25 +319,26 @@ function Build-FormLayout {
     $mainLayout.RowCount = 2
     $mainLayout.Padding = New-Object System.Windows.Forms.Padding(10)
     $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
-    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 50))) | Out-Null
+    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 45))) | Out-Null
     
     # Content panel
     $contentLayout = New-Object System.Windows.Forms.TableLayoutPanel
     $contentLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $contentLayout.ColumnCount = 4
+    $contentLayout.ColumnCount = 2
     $contentLayout.RowCount = 10
-    $contentLayout.AutoSize = $true
+    $contentLayout.AutoSize = $false
     
     # Column styles: Label | TextBox | Icon | Button
-    $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 150))) | Out-Null
+    $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 130))) | Out-Null
     $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
-    $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 30))) | Out-Null
-    $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90))) | Out-Null
+    # $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 30))) | Out-Null
+    # $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90))) | Out-Null
     
-    # Row styles
-    for ($i = 0; $i -lt 9; $i++) {
-        $contentLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::AutoSize))) | Out-Null
+    # Row styles - using fixed heights for consistent alignment
+    for ($i = 0; $i -lt 6; $i++) {
+        $contentLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 35))) | Out-Null
     }
+    # Description row - expandable
     $contentLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
     
     return @{
@@ -324,29 +355,36 @@ function Add-FormRow {
         [string]$LabelText,
         [System.Windows.Forms.Control]$InputControl,
         [string]$TooltipText,
-        [System.Windows.Forms.Control]$ExtraControl = $null,
-        [int]$ColumnSpan = 1
+        [System.Windows.Forms.Control]$ExtraControl = $null
+        # NOTE: $ColumnSpan is no longer needed/used here
     )
     
-    # Add label
+    # 1. Add label (Main Layout Col 0)
     $label = New-Label -Text $LabelText
+    $label.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 6)
     $Layout.Controls.Add($label, 0, $Row)
     
-    # Add input control
-    if ($ColumnSpan -gt 1) {
-        $Layout.SetColumnSpan($InputControl, $ColumnSpan)
-    }
-    $Layout.Controls.Add($InputControl, 1, $Row)
+    # 2. Create the inner layout panel for all controls (Main Layout Col 1)
+    $subLayout = Build-InputRowLayout -HasExtraControl ($null -ne $ExtraControl)
+    $Layout.Controls.Add($subLayout, 1, $Row)
     
-    # Add info icon
+    # 3. Add Input Control (Sub-Layout Col 0)
+    # This input control now correctly stretches across the available percentage width.
+    $InputControl.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $subLayout.Controls.Add($InputControl, 0, 0)
+    
+    # 4. Add Info Icon (Sub-Layout Col 1)
     if (-not [string]::IsNullOrEmpty($TooltipText)) {
         $icon = New-InfoIcon -TooltipText $TooltipText
-        $Layout.Controls.Add($icon, 2, $Row)
+        # Icon is placed in Column 1 of the subLayout (fixed 30px width)
+        $subLayout.Controls.Add($icon, 1, 0)
     }
     
-    # Add extra control (like Browse button)
+    # 5. Add extra control (Sub-Layout Col 2 - if it exists)
     if ($null -ne $ExtraControl) {
-        $Layout.Controls.Add($ExtraControl, 3, $Row)
+        # ExtraControl is placed in Column 2 of the subLayout (fixed 90px width)
+        $ExtraControl.Anchor = [System.Windows.Forms.AnchorStyles]::Right
+        $subLayout.Controls.Add($ExtraControl, 2, 0)
     }
 }
 
@@ -367,35 +405,46 @@ function Add-DualInputRow {
     $subLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
     $subLayout.ColumnCount = 6
     $subLayout.RowCount = 1
-    $subLayout.Margin = New-Object System.Windows.Forms.Padding(0)
-    
+    $subLayout.Margin = New-Object System.Windows.Forms.Padding(0, 0, 0, 6)
+    $subLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
+
     # Column styles for sub-layout
-    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::AutoSize))) | Out-Null  # Label1
-    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 50))) | Out-Null  # Input1
-    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 30))) | Out-Null  # Icon1
+    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 133))) | Out-Null  # Label1
+    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 80))) | Out-Null  # Input1
+    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 20))) | Out-Null  # Icon1
     $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::AutoSize))) | Out-Null  # Label2
-    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 50))) | Out-Null  # Input2
-    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 30))) | Out-Null  # Icon2
+    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 120))) | Out-Null  # Input2
+    $subLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 33))) | Out-Null  # Icon2
     
     $lbl1 = New-Label -Text $Label1Text
-    $lbl1.Margin = New-Object System.Windows.Forms.Padding(0, 8, 5, 3)
+    $lbl1.Margin = New-Object System.Windows.Forms.Padding(0, 0, 5, 0)
+    $lbl1.Anchor = [System.Windows.Forms.AnchorStyles]::Left
     $subLayout.Controls.Add($lbl1, 0, 0)
+    
+    $Input1.Anchor = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+    $Input1.Margin = New-Object System.Windows.Forms.Padding(0)
     $subLayout.Controls.Add($Input1, 1, 0)
-    $subLayout.Controls.Add((New-InfoIcon -TooltipText $Tooltip1), 2, 0)
+    
+    $icon1 = New-InfoIcon -TooltipText $Tooltip1
+    $icon1.Anchor = [System.Windows.Forms.AnchorStyles]::Left
+    $subLayout.Controls.Add($icon1, 2, 0)
     
     $lbl2 = New-Label -Text $Label2Text
-    $lbl2.Margin = New-Object System.Windows.Forms.Padding(15, 8, 5, 3)
+    $lbl2.Margin = New-Object System.Windows.Forms.Padding(15, 0, 5, 0)
+    $lbl2.Anchor = [System.Windows.Forms.AnchorStyles]::Left
     $subLayout.Controls.Add($lbl2, 3, 0)
-    $subLayout.Controls.Add($Input2, 4, 0)
-    $subLayout.Controls.Add((New-InfoIcon -TooltipText $Tooltip2), 5, 0)
     
-    # Add main label
-    $mainLabel = New-Label -Text ""
-    $Layout.Controls.Add($mainLabel, 0, $Row)
+    $Input2.Anchor = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+    $Input2.Margin = New-Object System.Windows.Forms.Padding(0)
+    $subLayout.Controls.Add($Input2, 4, 0)
+    
+    $icon2 = New-InfoIcon -TooltipText $Tooltip2
+    $icon2.Anchor = [System.Windows.Forms.AnchorStyles]::Left
+    $subLayout.Controls.Add($icon2, 5, 0)
     
     # Add sub-layout spanning remaining columns
-    $Layout.Controls.Add($subLayout, 1, $Row)
-    $Layout.SetColumnSpan($subLayout, 3)
+    $Layout.Controls.Add($subLayout, 0, $Row)
+    $Layout.SetColumnSpan($subLayout, 4)
 }
 
 #endregion
@@ -415,8 +464,8 @@ function Show-CreateAppFileForm {
     $txtVersion = New-TextBox
     $txtStartMenuFolder = New-TextBox
     $txtRegistryKey = New-TextBox
-    $txtShortcutFolder = New-TextBox -ReadOnly $true
-    $txtAppPath = New-TextBox -ReadOnly $true
+    $txtShortcutFolder = New-TextBox
+    $txtAppPath = New-TextBox
     $txtDescription = New-TextBox -Multiline $true -Height 80
     
     # Variables to store paths
@@ -443,7 +492,6 @@ function Show-CreateAppFileForm {
     # Row 0: Group Name
     Add-FormRow -Layout $contentLayout -Row 0 -LabelText "Group Name:" -InputControl $txtGroup `
         -TooltipText "Organize apps into groups (e.g., 'Development Tools', 'Media Players'). Leave empty for ungrouped apps." `
-        -ColumnSpan 2
     
     # Row 1: Name and Version (dual input)
     Add-DualInputRow -Layout $contentLayout -Row 1 `
@@ -453,12 +501,10 @@ function Show-CreateAppFileForm {
     # Row 2: StartMenu Folder
     Add-FormRow -Layout $contentLayout -Row 2 -LabelText "StartMenu Folder:" -InputControl $txtStartMenuFolder `
         -TooltipText "The folder name that will appear in the Start Menu (Required)." `
-        -ColumnSpan 2
-    
+  
     # Row 3: Registry Key
     Add-FormRow -Layout $contentLayout -Row 3 -LabelText "Registry Key:" -InputControl $txtRegistryKey `
         -TooltipText "Registry key to detect if app is installed (e.g., 'Google\Chrome'). Leave empty if not applicable." `
-        -ColumnSpan 2
     
     # Row 4: Shortcuts Folder
     Add-FormRow -Layout $contentLayout -Row 4 -LabelText "Shortcuts Folder:" -InputControl $txtShortcutFolder `
@@ -473,7 +519,6 @@ function Show-CreateAppFileForm {
     # Row 6: Description
     Add-FormRow -Layout $contentLayout -Row 6 -LabelText "Description:" -InputControl $txtDescription `
         -TooltipText "Brief description of the application (1-2 lines recommended)." `
-        -ColumnSpan 2
     
     # Bottom buttons panel
     $bottomPanel = New-Object System.Windows.Forms.FlowLayoutPanel
