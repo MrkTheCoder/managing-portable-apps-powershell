@@ -8,12 +8,15 @@ This script automates the management of portable applications by scanning a desi
 
 ***
 
-## App Window
+## App Windows
 
 <p align="center">
 	<img width="836" height="493" alt="image" src="https://github.com/user-attachments/assets/2468c691-afb5-4df1-82f8-a48956638a2e" />
 </p>
 
+<p align="center">
+	<img width="686" height="553" alt="image" src="https://github.com/user-attachments/assets/4881e8ad-e3ea-4331-b386-e54bff8266b0" />
+</p>
 ***
 
 ## Highlight Features
