@@ -207,6 +207,7 @@ function New-TextBox {
         [System.Windows.Forms.AnchorStyles]$Anchor = "Left,Right",
         [bool]$ReadOnly = $false,
         [bool]$Multiline = $false,
+        [bool]$Scrollbar = $true,
         [int]$Height = 23
     )
     
@@ -216,7 +217,7 @@ function New-TextBox {
     $textBox.Multiline = $Multiline
     if ($Multiline) {
         $textBox.Height = $Height
-        $textBox.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+        if ($Scrollbar) { $textBox.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical }
         $textBox.Anchor = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right -bor [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Bottom
     }
     $textBox.Margin = New-Object System.Windows.Forms.Padding(3)
@@ -224,7 +225,11 @@ function New-TextBox {
 }
 
 function New-InfoIcon {
-    param([string]$TooltipText)
+    param(
+        [string]$TooltipText,
+        [string]$HelpText,
+        [System.Windows.Forms.TextBox]$HelpTextBox = $null
+    )
     
     $icon = New-Object System.Windows.Forms.Label
     $icon.Text = "ℹ"
@@ -242,6 +247,17 @@ function New-InfoIcon {
     $tooltip.InitialDelay = 100
     $tooltip.ReshowDelay = 100
     $tooltip.ShowAlways = $true
+    
+    # Add hover events to update help textbox if provided
+    if ($null -ne $HelpTextBox) {
+        $icon.Add_MouseEnter({
+                $HelpTextBox.Text = $HelpText
+            }.GetNewClosure())
+        
+        $icon.Add_MouseLeave({
+                $HelpTextBox.Text = ""
+            }.GetNewClosure())
+    }
     
     return $icon
 }
@@ -306,9 +322,9 @@ function Build-InputRowLayout {
 function Build-FormLayout {
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "Create .app File"
-    $form.Size = New-Object System.Drawing.Size(700, 560)
+    $form.Size = New-Object System.Drawing.Size(700, 600)
     $form.StartPosition = "CenterScreen"
-    $form.MinimumSize = New-Object System.Drawing.Size(650, 500)
+    $form.MinimumSize = New-Object System.Drawing.Size(650, 550)
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::Sizable
     $form.MaximizeBox = $true
     
@@ -325,21 +341,21 @@ function Build-FormLayout {
     $contentLayout = New-Object System.Windows.Forms.TableLayoutPanel
     $contentLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
     $contentLayout.ColumnCount = 2
-    $contentLayout.RowCount = 10
+    $contentLayout.RowCount = 8
     $contentLayout.AutoSize = $false
     
-    # Column styles: Label | TextBox | Icon | Button
+    # Column styles: Label | Controls
     $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 130))) | Out-Null
     $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
-    # $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 30))) | Out-Null
-    # $contentLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90))) | Out-Null
     
-    # Row styles - using fixed heights for consistent alignment
+    # Row styles - using fixed heights for rows 0-5, expandable for row 6 (Description), fixed for row 7 (Help)
     for ($i = 0; $i -lt 6; $i++) {
         $contentLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 35))) | Out-Null
     }
-    # Description row - expandable
+    # Row 6: Description row - expandable
     $contentLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
+    # Row 7: Help row - fixed height for 3 lines of text
+    $contentLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 120))) | Out-Null
     
     return @{
         Form          = $form
@@ -355,8 +371,9 @@ function Add-FormRow {
         [string]$LabelText,
         [System.Windows.Forms.Control]$InputControl,
         [string]$TooltipText,
-        [System.Windows.Forms.Control]$ExtraControl = $null
-        # NOTE: $ColumnSpan is no longer needed/used here
+        [string]$HelpText,
+        [System.Windows.Forms.Control]$ExtraControl = $null,
+        [System.Windows.Forms.TextBox]$HelpTextBox = $null
     )
     
     # 1. Add label (Main Layout Col 0)
@@ -369,20 +386,17 @@ function Add-FormRow {
     $Layout.Controls.Add($subLayout, 1, $Row)
     
     # 3. Add Input Control (Sub-Layout Col 0)
-    # This input control now correctly stretches across the available percentage width.
     $InputControl.Dock = [System.Windows.Forms.DockStyle]::Fill
     $subLayout.Controls.Add($InputControl, 0, 0)
     
     # 4. Add Info Icon (Sub-Layout Col 1)
     if (-not [string]::IsNullOrEmpty($TooltipText)) {
-        $icon = New-InfoIcon -TooltipText $TooltipText
-        # Icon is placed in Column 1 of the subLayout (fixed 30px width)
+        $icon = New-InfoIcon -TooltipText $TooltipText -HelpTextBox $HelpTextBox -HelpText $HelpText
         $subLayout.Controls.Add($icon, 1, 0)
     }
     
     # 5. Add extra control (Sub-Layout Col 2 - if it exists)
     if ($null -ne $ExtraControl) {
-        # ExtraControl is placed in Column 2 of the subLayout (fixed 90px width)
         $ExtraControl.Anchor = [System.Windows.Forms.AnchorStyles]::Right
         $subLayout.Controls.Add($ExtraControl, 2, 0)
     }
@@ -395,9 +409,12 @@ function Add-DualInputRow {
         [string]$Label1Text,
         [System.Windows.Forms.Control]$Input1,
         [string]$Tooltip1,
+        [string]$HelpText1,
         [string]$Label2Text,
         [System.Windows.Forms.Control]$Input2,
-        [string]$Tooltip2
+        [string]$Tooltip2,
+        [string]$HelpText2,
+        [System.Windows.Forms.TextBox]$HelpTextBox = $null
     )
     
     # Create sub-layout for dual inputs
@@ -425,7 +442,7 @@ function Add-DualInputRow {
     $Input1.Margin = New-Object System.Windows.Forms.Padding(0)
     $subLayout.Controls.Add($Input1, 1, 0)
     
-    $icon1 = New-InfoIcon -TooltipText $Tooltip1
+    $icon1 = New-InfoIcon -TooltipText $Tooltip1 -HelpTextBox $HelpTextBox -HelpText $HelpText1
     $icon1.Anchor = [System.Windows.Forms.AnchorStyles]::Left
     $subLayout.Controls.Add($icon1, 2, 0)
     
@@ -438,13 +455,13 @@ function Add-DualInputRow {
     $Input2.Margin = New-Object System.Windows.Forms.Padding(0)
     $subLayout.Controls.Add($Input2, 4, 0)
     
-    $icon2 = New-InfoIcon -TooltipText $Tooltip2
+    $icon2 = New-InfoIcon -TooltipText $Tooltip2 -HelpTextBox $HelpTextBox -HelpText $HelpText2
     $icon2.Anchor = [System.Windows.Forms.AnchorStyles]::Left
     $subLayout.Controls.Add($icon2, 5, 0)
     
     # Add sub-layout spanning remaining columns
     $Layout.Controls.Add($subLayout, 0, $Row)
-    $Layout.SetColumnSpan($subLayout, 4)
+    $Layout.SetColumnSpan($subLayout, 2)
 }
 
 #endregion
@@ -466,7 +483,12 @@ function Show-CreateAppFileForm {
     $txtRegistryKey = New-TextBox
     $txtShortcutFolder = New-TextBox
     $txtAppPath = New-TextBox
-    $txtDescription = New-TextBox -Multiline $true -Height 80
+    $txtDescription = New-TextBox -Multiline $true -Height 40
+    
+    # Help textbox (read-only, 3 lines height)
+    $txtHelp = New-TextBox -ReadOnly $true -Multiline $true -Scrollbar $false -Height 120
+    $txtHelp.BackColor = [System.Drawing.SystemColors]::Control
+    $txtHelp.Dock = [System.Windows.Forms.DockStyle]::Fill
     
     # Variables to store paths
     $script:selectedShortcutFolder = $null
@@ -488,37 +510,56 @@ function Show-CreateAppFileForm {
             $txtAppPath.Text = $folder
         }
     }
-    
+
+    $nl = [System.Environment]::NewLine
+
     # Row 0: Group Name
     Add-FormRow -Layout $contentLayout -Row 0 -LabelText "Group Name:" -InputControl $txtGroup `
         -TooltipText "Organize apps into groups (e.g., 'Development Tools', 'Media Players'). Leave empty for ungrouped apps." `
+        -HelpText "[Optional] You can assign a group name to categorize similar apps under the same group in the main app tree (e.g., Antiviruses, Text Editors, etc.).$($nl)These group names are solely for organizing similar apps in the main app view and will not create any folders in the Start Menu." `
+        -HelpTextBox $txtHelp
     
     # Row 1: Name and Version (dual input)
     Add-DualInputRow -Layout $contentLayout -Row 1 `
-        -Label1Text "Name:" -Input1 $txtName -Tooltip1 "The display name of your portable application (Required)." `
-        -Label2Text "Version:" -Input2 $txtVersion -Tooltip2 "Version number of the application (e.g., '1.0.0')."
+        -Label1Text "Name*:" -Input1 $txtName -Tooltip1 "The display name of your portable application (Required)." -HelpText1 "(Required) Enter a name for your portable app.$($nl)This name will only be used to display it in the main app tree." `
+        -Label2Text "Version:" -Input2 $txtVersion -Tooltip2 "Version number of the application (e.g., '1.0.0')." -HelpText2 "[Optional] Provide the app version.$($nl)This version will only be used in the app description and to compare it with the installed app, if it is already installed and you have provided its registry key." `
+        -HelpTextBox $txtHelp
     
     # Row 2: StartMenu Folder
-    Add-FormRow -Layout $contentLayout -Row 2 -LabelText "StartMenu Folder:" -InputControl $txtStartMenuFolder `
+    Add-FormRow -Layout $contentLayout -Row 2 -LabelText "StartMenu Folder*:" -InputControl $txtStartMenuFolder `
         -TooltipText "The folder name that will appear in the Start Menu (Required)." `
+        -HelpText "(Required) The name you specify here will be used to create a folder with the same name in the Start menu, where all shortcuts will be copied.$($nl)For portable apps, it is recommended to add '(Portable)' at the end of the name for convenience." `
+        -HelpTextBox $txtHelp
   
     # Row 3: Registry Key
     Add-FormRow -Layout $contentLayout -Row 3 -LabelText "Registry Key:" -InputControl $txtRegistryKey `
         -TooltipText "Registry key to detect if app is installed (e.g., 'Google\Chrome'). Leave empty if not applicable." `
+        -HelpText "[Optional] To find the name of the last key (e.g., Avira, 7-Zip), you can identify the last key path for any application installed on Windows by examining one of the following registry paths, depending on your platform (x86 or x64):$($nl)* HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall$($nl)* HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall" `
+        -HelpTextBox $txtHelp
     
     # Row 4: Shortcuts Folder
-    Add-FormRow -Layout $contentLayout -Row 4 -LabelText "Shortcuts Folder:" -InputControl $txtShortcutFolder `
-        -TooltipText "Folder containing .lnk shortcut files that will be processed." `
-        -ExtraControl $btnBrowseShortcuts -ColumnSpan 1
+    Add-FormRow -Layout $contentLayout -Row 4 -LabelText "Shortcuts Folder*:" -InputControl $txtShortcutFolder `
+        -TooltipText "Folder containing .lnk shortcut files that will be processed (Required)." `
+        -HelpText "(Required) Provide the path where you manually created all shortcuts for your portable app.$($nl)This script will then automatically convert them into a JSON file with the `.app` file marker and place the resulting file in the root folder of the portable app." `
+        -ExtraControl $btnBrowseShortcuts -HelpTextBox $txtHelp
     
     # Row 5: Portable App Folder
-    Add-FormRow -Layout $contentLayout -Row 5 -LabelText "Portable App Folder:" -InputControl $txtAppPath `
-        -TooltipText "Base folder where the .app file will be saved and referenced." `
-        -ExtraControl $btnBrowseAppPath -ColumnSpan 1
+    Add-FormRow -Layout $contentLayout -Row 5 -LabelText "Portable App Folder*:" -InputControl $txtAppPath `
+        -TooltipText "Base folder where the .app file will be saved and referenced (Required)." `
+        -HelpText "(Required) Specify the path to the folder where your portable app is located.$($nl)Based on this path and the shortcuts you defined in the section above, the `.app` file marker will be created in this folder." `
+        -ExtraControl $btnBrowseAppPath -HelpTextBox $txtHelp
     
-    # Row 6: Description
+    # Row 6: Description (expandable)
     Add-FormRow -Layout $contentLayout -Row 6 -LabelText "Description:" -InputControl $txtDescription `
         -TooltipText "Brief description of the application (1-2 lines recommended)." `
+        -HelpText "[Optional] Provide a concise application overview in 1-2 lines, ideally within 80 characters long each line." `
+        -HelpTextBox $txtHelp
+    
+    # Row 7: Help
+    $lblHelp = New-Label -Text "Help:"
+    $lblHelp.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 0)
+    $contentLayout.Controls.Add($lblHelp, 0, 7)
+    $contentLayout.Controls.Add($txtHelp, 1, 7)
     
     # Bottom buttons panel
     $bottomPanel = New-Object System.Windows.Forms.FlowLayoutPanel
