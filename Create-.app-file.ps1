@@ -6,19 +6,6 @@ Add-Type -AssemblyName System.Drawing
 
 #region Helper Functions
 
-function Show-TopMostDialog($dialog) {
-    $form = New-Object System.Windows.Forms.Form
-    $form.TopMost = $true
-    $form.ShowInTaskbar = $false
-    $form.StartPosition = "Manual"
-    $form.Location = New-Object System.Drawing.Point(-32000, -32000)
-    $form.Size = New-Object System.Drawing.Size(1, 1)
-    $form.Show()
-    $result = $dialog.ShowDialog($form)
-    $form.Dispose()
-    return $result
-}
-
 function Select-FolderDialog {
     param([string]$Title = "Select Folder")
     
@@ -26,7 +13,7 @@ function Select-FolderDialog {
     $folderBrowser.Description = $Title
     $folderBrowser.ShowNewFolderButton = $true
     
-    if ((Show-TopMostDialog $folderBrowser) -eq 'OK') {
+    if (($folderBrowser.ShowDialog()) -eq 'OK') {
         return $folderBrowser.SelectedPath
     }
     return $null
@@ -588,7 +575,7 @@ function Show-CreateAppFileForm {
     $btnCreate.Add_Click({
             # Validation
             $errors = @()
-        
+
             if ([string]::IsNullOrWhiteSpace($txtName.Text)) {
                 $errors += "• App Name is required"
             }
@@ -597,10 +584,12 @@ function Show-CreateAppFileForm {
                 $errors += "• StartMenu Folder is required"
             }
         
+            $script:selectedShortcutFolder = $txtShortcutFolder.Text
             if (-not $script:selectedShortcutFolder -or -not (Test-Path -LiteralPath $script:selectedShortcutFolder)) {
                 $errors += "• Please select a valid Shortcuts Folder"
             }
-        
+
+            $script:selectedAppPath = $txtAppPath.Text 
             if (-not $script:selectedAppPath -or -not (Test-Path -LiteralPath $script:selectedAppPath)) {
                 $errors += "• Please select a valid Portable App Folder"
             }
@@ -641,18 +630,20 @@ function Show-CreateAppFileForm {
                     $entry["target"] = Convert-PathToToken $props.TargetPath $script:selectedAppPath
                     $entry["arguments"] = Convert-PathToToken $props.Arguments $script:selectedAppPath
                     $entry["workingDirectory"] = Convert-PathToToken $props.WorkingDirectory $script:selectedAppPath
-                    $entry["icon"] = Convert-PathToToken $props.IconLocation $script:selectedAppPath
+                    $entry["icon"] = $props.IconLocation # Convert-PathToToken $props.IconLocation $script:selectedAppPath
                     $entry["windowStyle"] = $props.WindowStyle
                     $entry["description"] = Clean-Description $props.Description
                     $shortcutEntries += $entry
                 }
             
+                $desc = $txtDescription.Text.Trim() -replace "`r?`n", '\n'
+                $desc = $desc -replace "\n\n", "\n"
                 # Build app object
                 $appObj = [ordered]@{
                     appName                = $txtName.Text.Trim()
                     appVersion             = $txtVersion.Text.Trim()
                     appGroup               = $txtGroup.Text.Trim()
-                    appDescription         = $txtDescription.Text.Trim()
+                    appDescription         = $desc
                     appInstallRegistryData = $txtRegistryKey.Text.Trim()
                     appStartMenuFolderName = $txtStartMenuFolder.Text.Trim()
                     shortcuts              = $shortcutEntries
@@ -671,8 +662,6 @@ function Show-CreateAppFileForm {
                     [System.Windows.Forms.MessageBoxButtons]::OK,
                     [System.Windows.Forms.MessageBoxIcon]::Information
                 )
-            
-                $form.Close()
             }
             catch {
                 [System.Windows.Forms.MessageBox]::Show(
@@ -687,7 +676,6 @@ function Show-CreateAppFileForm {
     #endregion
     
     # Show form
-    $form.TopMost = $true
     $form.Add_Shown({ $form.Activate() })
     [void]$form.ShowDialog()
 }
