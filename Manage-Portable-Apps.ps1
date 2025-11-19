@@ -357,7 +357,7 @@ Write-Host "Found $($createdShortcuts.Count) created shortcuts in Start Menu fol
 $portablesRoot = Join-Path $scriptDir "Portables"
 # ------------------------------------------------------------------------
 # Uncomment for development override:
-# $portablesRoot = "D:\Portables"
+$portablesRoot = "D:\Portables"
 # ------------------------------------------------------------------------
 
 if (-not (Test-Path -LiteralPath $portablesRoot)) {
@@ -431,4 +431,4 @@ if ($appWrappers.Count -eq 0) {
 }
 
 # Call the UI (function exported from UI module)
-Show-ManageUI -appWrappers $appWrappers -Title "$($scriptName) $($scriptVersion)"
+Show-ManageUI -appWrappers $appWrappers -Title "$($scriptName) $($scriptVersion)" -ScriptDir $scriptDir

@@ -659,6 +659,7 @@ function Build-MainLayout {
 # ----------------------------------------------------------------------
 function Register-EventHandlers {
     param(
+        [Parameter(Mandatory = $true)][string] $ScriptDir,
         [Parameter(Mandatory)][System.Windows.Forms.Form] $Form,
         [Parameter(Mandatory)][System.Windows.Forms.TreeView] $Tree,
         [Parameter(Mandatory)][System.Windows.Forms.ComboBox] $CmbFilter,
@@ -982,7 +983,18 @@ function Register-EventHandlers {
 
 
     $sbCreate = {
-        [System.Windows.Forms.MessageBox]::Show("Create '.app' file functionality will be implemented by main script.", "Create .app File", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+        # Path to the second script
+        $secondScriptPath = Join-Path $ScriptDir "Create-.app-file.ps1"
+
+        # Path for the output and error log file
+        $logFile = Join-Path $PSScriptRoot "create_app_log.txt"
+
+        # Launch the second script and redirect all output (including errors)
+        # The `&` operator is used to run the new process and the redirection operator `*>`
+        # redirects all output streams to the specified file.
+        $command = "-ExecutionPolicy Bypass -NoProfile -File `"$secondScriptPath`" *>$logFile"
+    
+        Start-Process powershell.exe -ArgumentList $command -NoNewWindow
     }.GetNewClosure()
     $MenuCreateApp.Add_Click($sbCreate)
 
@@ -1015,6 +1027,7 @@ function Register-EventHandlers {
 function Show-ManageUI {
     param(
         [Parameter(Mandatory = $true)][object[]] $appWrappers,
+        [Parameter(Mandatory = $true)][string] $ScriptDir,
         [string] $Title = "Manage Portable Apps"
     )
 
@@ -1084,7 +1097,7 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
     $layoutInfo = Build-MainLayout -Title $Title -Icon $FormIcon -ImgList $imgList -MenuStripInfo $menuStrip -TopBar $topBar -LeftPanel $leftPanel -TxtDetails $txtDetails -BottomPanel $bottomPanel
 
     # Wire events (use GetNewClosure in Register-EventHandlers)
-    Register-EventHandlers -Form $layoutInfo.Form -Tree $layoutInfo.Tree -CmbFilter $layoutInfo.CmbFilter -Txt $layoutInfo.Txt `
+    Register-EventHandlers -ScriptDir $ScriptDir -Form $layoutInfo.Form -Tree $layoutInfo.Tree -CmbFilter $layoutInfo.CmbFilter -Txt $layoutInfo.Txt `
         -BtnSelectAll $layoutInfo.BtnSelectAll -BtnUnselectAll $layoutInfo.BtnUnselectAll -BtnInvert $layoutInfo.BtnInvert `
         -MenuAddShortcut $layoutInfo.MenuAddShortcut -MenuRemoveShortcut $layoutInfo.MenuRemoveShortcut -MenuCreateApp $layoutInfo.MenuCreateApp `
         -MenuAbout $layoutInfo.MenuAbout -MenuExit $layoutInfo.MenuExit -BtnExit $layoutInfo.BtnExit -AppWrappers $appWrappers -ImgList $imgList

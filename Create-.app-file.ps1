@@ -219,7 +219,7 @@ function New-InfoIcon {
     )
     
     $icon = New-Object System.Windows.Forms.Label
-    $icon.Text = "ℹ"
+    $icon.Text = "i"
     $icon.Font = New-Object System.Drawing.Font("Segoe UI", 10, [System.Drawing.FontStyle]::Bold)
     $icon.ForeColor = [System.Drawing.Color]::DodgerBlue
     $icon.AutoSize = $true
