@@ -24,6 +24,14 @@ $scriptVersion = "v0.61.202510 Beta"
 Write-Host "Running on PowerShell version: $($PSVersionTable.PSVersion)"
 Write-Host "Script: $($scriptName) $($scriptVersion)"
 
+# Admin check
+$IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $IsAdmin) {
+    Write-Host "ERROR: Run as Administrator." -ForegroundColor Red
+    [System.Windows.Forms.MessageBox]::Show("ERROR: Run as Administrator.", "$($scriptName) $($scriptVersion)", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+    exit 1
+}
+Write-Host "Running as an Administrator."
 
 # Function Helper: Reusable Catch helper function
 function Show-ErrorReport {
@@ -357,7 +365,7 @@ Write-Host "Found $($createdShortcuts.Count) created shortcuts in Start Menu fol
 $portablesRoot = Join-Path $scriptDir "Portables"
 # ------------------------------------------------------------------------
 # Uncomment for development override:
-$portablesRoot = "D:\Portables"
+# $portablesRoot = "D:\Portables"
 # ------------------------------------------------------------------------
 
 if (-not (Test-Path -LiteralPath $portablesRoot)) {
