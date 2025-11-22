@@ -89,6 +89,88 @@ function Get-IconFromFile {
     }
 }
 
+
+# ----------------------------------------------------------------------
+# Helper: Custom Three Button Dialog
+# ----------------------------------------------------------------------
+function Show-CustomThreeButtonDialog {
+    param(
+        [string]$Message,
+        [string]$Title = "Select an option",
+        [string]$Button1Text = "Option1",
+        [string]$Button2Text = "Option2",
+        [string]$Button3Text = "Cancel"
+    )
+
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+
+    # Create form
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = $Title
+    $form.StartPosition = "CenterScreen"
+    $form.FormBorderStyle = "FixedDialog"
+    $form.MaximizeBox = $false
+    $form.MinimizeBox = $false
+    $form.Size = New-Object System.Drawing.Size(420, 160)
+    $form.Padding = 10
+
+    # Main layout
+    $mainLayout = New-Object System.Windows.Forms.TableLayoutPanel
+    $mainLayout.Dock = "Fill"
+    $mainLayout.RowCount = 2
+    $mainLayout.ColumnCount = 1
+    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 45)))
+
+    # Message label
+    $lbl = New-Object System.Windows.Forms.Label
+    $lbl.Text = $Message
+    $lbl.AutoSize = $true
+    $lbl.Dock = "Fill"
+    $lbl.Padding = 5
+
+    # Bottom button layout (right aligned)
+    $btnLayout = New-Object System.Windows.Forms.TableLayoutPanel
+    $btnLayout.Dock = "Right"
+    $btnLayout.RowCount = 1
+    $btnLayout.ColumnCount = 3
+    $btnLayout.AutoSize = $true
+
+    # Create buttons
+    $btn1 = New-Object System.Windows.Forms.Button
+    $btn1.Text = $Button1Text
+    $btn1.DialogResult = [System.Windows.Forms.DialogResult]::Yes
+    $btn1.AutoSize = $true
+
+    $btn2 = New-Object System.Windows.Forms.Button
+    $btn2.Text = $Button2Text
+    $btn2.DialogResult = [System.Windows.Forms.DialogResult]::No
+    $btn2.AutoSize = $true
+
+    $btn3 = New-Object System.Windows.Forms.Button
+    $btn3.Text = $Button3Text
+    $btn3.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+    $btn3.AutoSize = $true
+
+    # Add buttons to layout
+    $btnLayout.Controls.Add($btn1, 0, 0)
+    $btnLayout.Controls.Add($btn2, 1, 0)
+    $btnLayout.Controls.Add($btn3, 2, 0)
+
+    # Assemble layout
+    $mainLayout.Controls.Add($lbl, 0, 0)
+    $mainLayout.Controls.Add($btnLayout, 0, 1)
+    $form.Controls.Add($mainLayout)
+
+    # Keyboard defaults
+    $form.AcceptButton = $btn1
+    $form.CancelButton = $btn3
+
+    return $form.ShowDialog()
+}
+
+
 # ----------------------------------------------------------------------
 # Helper: pick first valid icon
 # ----------------------------------------------------------------------
@@ -730,20 +812,11 @@ function Register-EventHandlers {
 
     $sbAdd = {
         # --- Step 1: Prompt the user for target type ---
-        $choice = [System.Windows.Forms.MessageBox]::Show(
-            "Where do you want to create portable shortcuts?" + [Environment]::NewLine +
-            [Environment]::NewLine +
-            "Yes = All Users" + [Environment]::NewLine +
-            "No = Current User" + [Environment]::NewLine +
-            "Cancel = Abort",
-            "Select Target User Type",
-            [System.Windows.Forms.MessageBoxButtons]::YesNoCancel,
-            [System.Windows.Forms.MessageBoxIcon]::Question
-        )
-
+        $choice = Show-CustomThreeButtonDialog -Message "Where do you want to create shortcuts?" -Title "Select Portable Shortcuts Location" -Button1Text "All Users" -Button2Text "Current User" -Button3Text "Cancel"
+        Write-Host $choice
         switch ($choice) {
-            'Yes' { $TargetUserType = 'AllUsers' }
-            'No' { $TargetUserType = 'CurrentUser' }
+            "Yes" { $TargetUserType = 'AllUsers' }
+            "No" { $TargetUserType = 'CurrentUser' }
             Default {
                 [System.Windows.Forms.MessageBox]::Show("Operation cancelled by user.", "Cancelled", [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
                 return
@@ -1117,4 +1190,4 @@ X4Dtrl+A7K1ef+2tXX/rqlh+6KBDPu2tXAD/47sA7bBkAPzguAH/4rkB/uC3Af7fswH/4LYB88KDAfPE
 # ==============================================
 # Exported entry point
 # ==============================================
-Export-ModuleMember -Function Show-ManageUI, Register-EventHandlers, Set-FillTree, Update-MenuItemStates, Update-ParentCheckState, Update-DetailsTextBox, Get-IconFromFile, Get-FirstIcon, Set-AllTreeNodesChecked, Set-ToggleTreeNodeSelection
+Export-ModuleMember -Function Show-ManageUI, Register-EventHandlers, Set-FillTree, Update-MenuItemStates, Update-ParentCheckState, Update-DetailsTextBox, Get-IconFromFile, Get-FirstIcon, Set-AllTreeNodesChecked, Set-ToggleTreeNodeSelection, Show-CustomThreeButtonDialog
