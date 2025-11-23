@@ -19,7 +19,7 @@
 
 # Script header data
 $scriptName = "Manage Portable Apps"
-$scriptVersion = "v0.61.202510 Beta"
+$scriptVersion = "v0.74.202511 Beta"
 
 Write-Host "Running on PowerShell version: $($PSVersionTable.PSVersion)"
 Write-Host "Script: $($scriptName) $($scriptVersion)"
@@ -366,7 +366,7 @@ Write-Host "Found $($createdShortcuts.Count) created shortcuts in Start Menu fol
 $portablesRoot = Join-Path $scriptDir "Portables"
 # ------------------------------------------------------------------------
 # Uncomment for development override:
-#$portablesRoot = "D:\Portables"
+# $portablesRoot = "D:\Portables"
 # ------------------------------------------------------------------------
 
 if (-not (Test-Path -LiteralPath $portablesRoot)) {

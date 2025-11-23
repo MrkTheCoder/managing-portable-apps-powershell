@@ -101,10 +101,9 @@ function Show-CustomThreeButtonDialog {
         [string]$Button2Text = "Option2",
         [string]$Button3Text = "Cancel"
     )
-
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
-
+    
     # Create form
     $form = New-Object System.Windows.Forms.Form
     $form.Text = $Title
@@ -113,62 +112,69 @@ function Show-CustomThreeButtonDialog {
     $form.MaximizeBox = $false
     $form.MinimizeBox = $false
     $form.Size = New-Object System.Drawing.Size(420, 160)
-    $form.Padding = 10
-
+    $form.Padding = New-Object System.Windows.Forms.Padding(10)
+    
     # Main layout
     $mainLayout = New-Object System.Windows.Forms.TableLayoutPanel
-    $mainLayout.Dock = "Fill"
+    $mainLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
     $mainLayout.RowCount = 2
     $mainLayout.ColumnCount = 1
-    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
-    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 45)))
-
+    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
+    $mainLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 45))) | Out-Null
+    
     # Message label
     $lbl = New-Object System.Windows.Forms.Label
     $lbl.Text = $Message
     $lbl.AutoSize = $true
-    $lbl.Dock = "Fill"
-    $lbl.Padding = 5
-
+    $lbl.Dock = [System.Windows.Forms.DockStyle]::Fill
+    $lbl.Padding = New-Object System.Windows.Forms.Padding(5)
+    
     # Bottom button layout (right aligned)
     $btnLayout = New-Object System.Windows.Forms.TableLayoutPanel
-    $btnLayout.Dock = "Right"
+    $btnLayout.Dock = [System.Windows.Forms.DockStyle]::Right
     $btnLayout.RowCount = 1
     $btnLayout.ColumnCount = 3
     $btnLayout.AutoSize = $true
-
+    
     # Create buttons
     $btn1 = New-Object System.Windows.Forms.Button
     $btn1.Text = $Button1Text
     $btn1.DialogResult = [System.Windows.Forms.DialogResult]::Yes
     $btn1.AutoSize = $true
-
+    
     $btn2 = New-Object System.Windows.Forms.Button
     $btn2.Text = $Button2Text
     $btn2.DialogResult = [System.Windows.Forms.DialogResult]::No
     $btn2.AutoSize = $true
-
+    
     $btn3 = New-Object System.Windows.Forms.Button
     $btn3.Text = $Button3Text
     $btn3.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
     $btn3.AutoSize = $true
-
-    # Add buttons to layout
-    $btnLayout.Controls.Add($btn1, 0, 0)
-    $btnLayout.Controls.Add($btn2, 1, 0)
-    $btnLayout.Controls.Add($btn3, 2, 0)
-
-    # Assemble layout
-    $mainLayout.Controls.Add($lbl, 0, 0)
-    $mainLayout.Controls.Add($btnLayout, 0, 1)
-    $form.Controls.Add($mainLayout)
-
-    # Keyboard defaults
+    
+    [void]$btnLayout.Controls.Add($btn1, 0, 0)
+    [void]$btnLayout.Controls.Add($btn2, 1, 0)
+    [void]$btnLayout.Controls.Add($btn3, 2, 0)
+    
+    [void]$mainLayout.Controls.Add($lbl, 0, 0)
+    [void]$mainLayout.Controls.Add($btnLayout, 0, 1)
+    
+    $form.Controls.Add($mainLayout) | Out-Null
     $form.AcceptButton = $btn1
     $form.CancelButton = $btn3
-
-    return $form.ShowDialog()
+    
+    # Show dialog and capture result
+    $dialogResult = $form.ShowDialog()
+    
+    # Map to a clean string
+    switch ($dialogResult) {
+        ([System.Windows.Forms.DialogResult]::Yes) { return "Yes" }
+        ([System.Windows.Forms.DialogResult]::No) { return "No" }
+        ([System.Windows.Forms.DialogResult]::Cancel) { return "Cancel" }
+        default { return "Cancel" }
+    }
 }
+
 
 
 # ----------------------------------------------------------------------
@@ -365,14 +371,17 @@ function Update-DetailsTextBox {
     $sb.AppendLine() | Out-Null
 
     $grp = if ($w.appGroup) { $w.appGroup } else { "<UNGROUPED>" }
-    $sb.AppendLine("Group: " + $grp) | Out-Null
+    $sb.AppendLine("Group:") | Out-Null
+    $sb.AppendLine($grp) | Out-Null
     $sb.AppendLine() | Out-Null
 
-    $sb.AppendLine("StartMenu Folder: " + $w.appStartMenuFolderName) | Out-Null
+    $sb.AppendLine("StartMenu Folder:") | Out-Null
+    $sb.AppendLine($w.appStartMenuFolderName) | Out-Null
     $sb.AppendLine() | Out-Null
 
     $desc = $w.appDescription -replace '\\n', [Environment]::NewLine
-    $sb.AppendLine("Description:`n$desc") | Out-Null
+    $sb.AppendLine("Description:") | Out-Null
+    $sb.AppendLine("$desc") | Out-Null
 
     $txt.Text = $sb.ToString().TrimEnd()
 }
@@ -676,16 +685,16 @@ function Build-MainLayout {
     $leftPanelLayout.ColumnCount = 1
     $leftPanelLayout.RowCount = 2
     $leftPanelLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
-    $leftPanelLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 35))) | Out-Null
+    $leftPanelLayout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 50))) | Out-Null
 
     # Selection buttons sublayout
     $selectionButtonsLayout = New-Object System.Windows.Forms.TableLayoutPanel
     $selectionButtonsLayout.Dock = [System.Windows.Forms.DockStyle]::Fill
     $selectionButtonsLayout.ColumnCount = 3
     $selectionButtonsLayout.RowCount = 1
-    $selectionButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 33.33))) | Out-Null
-    $selectionButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 33.33))) | Out-Null
-    $selectionButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 33.34))) | Out-Null
+    $selectionButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 30))) | Out-Null
+    $selectionButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 30))) | Out-Null
+    $selectionButtonsLayout.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 40))) | Out-Null
 
     $selectionButtonsLayout.Controls.Add($LeftPanel.BtnSelectAll, 0, 0)
     $selectionButtonsLayout.Controls.Add($LeftPanel.BtnUnselectAll, 1, 0)
@@ -954,6 +963,7 @@ function Register-EventHandlers {
                 $treeNode.Tag.IsBothSame = $true
                 $treeNode.Tag.ShortcutAppVersion = $node.appVersion
                 $treeNode.Tag.ShortcutUserType = $TargetUserType
+                $treeNode.Tag.ShortcutPath = $targetFolder
 
                 $treeNode.ImageKey = 'startMenu'
                 $treeNode.SelectedImageKey = 'startMenu'
