@@ -11,7 +11,7 @@ This script automates the management of portable applications by scanning a desi
 ## App Windows
 
 <p align="center">
-	<img width="836" height="493" alt="image" src="https://github.com/user-attachments/assets/2468c691-afb5-4df1-82f8-a48956638a2e" />
+	![Manage-Portable-Apps](https://github.com/user-attachments/assets/53873601-5d8d-4de0-8d9f-571a238109a6)
 </p>
 
 <p align="center">
