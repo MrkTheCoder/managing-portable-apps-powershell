@@ -92,6 +92,84 @@ function Convert-PathToToken {
     return $normFull
 }
 
+function Get-FirstIcon {
+    param($icons)
+    if ($null -eq $icons) { return $null }
+    if ($icons -is [System.Array]) {
+        foreach ($candidate in $icons) {
+            if ($candidate -is [System.Drawing.Icon]) { return $candidate }
+        }
+        return $null
+    }
+    else {
+        if ($icons -is [System.Drawing.Icon]) { return $icons }
+        return $null
+    }
+}
+
+if (-not ([System.Management.Automation.PSTypeName]'IconExtractor').Type) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public class IconExtractor
+{
+    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr ExtractIcon(IntPtr hInst, string lpszExeFileName, int nIconIndex);
+    
+    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+    public static extern int ExtractIconEx(string lpszFile, int nIconIndex, IntPtr[] phiconLarge, IntPtr[] phiconSmall, int nIcons);
+    
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern bool DestroyIcon(IntPtr handle);
+}
+"@ -ErrorAction Stop
+}
+
+function Get-IconFromFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [int]$IconIndex = 0,
+        [switch]$Large
+    )
+
+    try {
+        if (-not (Test-Path $FilePath)) { return $null }
+
+        if ($Large) {
+            $largeIcons = New-Object IntPtr[] 1
+            $result = [IconExtractor]::ExtractIconEx($FilePath, $IconIndex, $largeIcons, $null, 1)
+            if ($result -gt 0 -and $largeIcons[0] -ne [IntPtr]::Zero) {
+                $icon = [System.Drawing.Icon]::FromHandle($largeIcons[0]).Clone()
+                [IconExtractor]::DestroyIcon($largeIcons[0])
+                return $icon
+            }
+        }
+        else {
+            $smallIcons = New-Object IntPtr[] 1
+            $result = [IconExtractor]::ExtractIconEx($FilePath, $IconIndex, $null, $smallIcons, 1)
+            if ($result -gt 0 -and $smallIcons[0] -ne [IntPtr]::Zero) {
+                $icon = [System.Drawing.Icon]::FromHandle($smallIcons[0]).Clone()
+                [IconExtractor]::DestroyIcon($smallIcons[0])
+                return $icon
+            }
+        }
+
+        # Fallback
+        $hIcon = [IconExtractor]::ExtractIcon([IntPtr]::Zero, $FilePath, $IconIndex)
+        if ($hIcon -ne [IntPtr]::Zero) {
+            $icon = [System.Drawing.Icon]::FromHandle($hIcon).Clone()
+            [IconExtractor]::DestroyIcon($hIcon)
+            return $icon
+        }
+        return $null
+    }
+    catch {
+        Write-Warning "Get-IconFromFile: $($_.Exception.Message)"
+        return $null
+    }
+}
+
 function Get-ShortcutProperties {
     param([string]$lnkPath)
     
@@ -308,13 +386,20 @@ function Build-InputRowLayout {
 
 function Build-FormLayout {
     $form = New-Object System.Windows.Forms.Form
-    $form.Text = "Create .app File"
+    $form.Text = "Shortcut-to-.app Converter"
     $form.Size = New-Object System.Drawing.Size(700, 600)
     $form.StartPosition = "CenterScreen"
     $form.MinimumSize = New-Object System.Drawing.Size(650, 550)
     $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::Sizable
     $form.MaximizeBox = $true
-    
+    $FormIcon = $null
+    try {
+        $sysIco = Join-Path $env:SystemRoot "System32\shell32.dll"
+        $formIcon = Get-FirstIcon (Get-IconFromFile -FilePath $sysIco -IconIndex 146 -Large)
+        $form.Icon = $formIcon
+    }
+    catch { }
+
     # Main TableLayoutPanel
     $mainLayout = New-Object System.Windows.Forms.TableLayoutPanel
     $mainLayout.Dock = [System.Windows.Forms.DockStyle]::Fill

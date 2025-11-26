@@ -545,7 +545,7 @@ function Build-MenuStrip {
     $menuSeparator1 = New-Object System.Windows.Forms.ToolStripSeparator
 
     $menuCreateApp = New-Object System.Windows.Forms.ToolStripMenuItem
-    $menuCreateApp.Text = "&Create '.app' file"
+    $menuCreateApp.Text = "&Shortcut-to-.app Converter"
     $menuCreateApp.ShortcutKeys = [System.Windows.Forms.Keys]::Control -bor [System.Windows.Forms.Keys]::N
 
     $menuSeparator2 = New-Object System.Windows.Forms.ToolStripSeparator
