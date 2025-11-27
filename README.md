@@ -4,7 +4,28 @@
 
 ## Introduction
 
-This script automates the management of portable applications by scanning a designated folder where each portable app is stored in its own subfolder and identified by a **`.app` JSON file**. The script allows **users to create this marker file** for new applications. It then compares those portable apps against the Start Menu entries on the system, allowing you to review, add, or remove shortcuts as needed. Because the shortcuts are based on the `.app` file's dynamic pathing logic, they **adapt even if you move the portable application folder** to a new location. The tool gives you a visual UI to manage which portables appear in your Start Menu, making it easier to keep your portable app collection in sync and maintain a clean environment.
+Managing portable applications can quickly become a headache—especially when dealing with shortcuts. A typical workflow looks like this: you gather your portable apps in a folder, manually create shortcuts, copy them into the Start Menu, and hope everything keeps working. But the moment you move that folder, switch drives, or copy the setup to another PC, all your shortcuts break. Suddenly, you’re fixing paths one by one, recreating shortcuts, or digging through folders to launch apps directly.
+
+This project solves that problem by introducing a smarter, dynamic system for managing portable applications.
+
+At the core of the system is a **`.app` JSON package file**, placed inside each portable application's folder. This file defines all metadata and Start Menu shortcuts for the app using dynamic path variables—most importantly **`[.app_path]`**, which always resolves to the portable application's real location at runtime. This means your shortcuts **never break**, even if you move the folder to another computer, drive, or directory.
+
+The main script scans your portable apps directory, loads each `.app` package, and allows you to:
+
+* **Create Start Menu shortcuts dynamically**
+* **Add or remove shortcuts with a visual UI**
+* **Detect existing installed applications**
+* **Compare Start Menu entries with your portable apps**
+* **Keep your system clean, consistent, and fully portable**
+
+To make things even easier, the project includes a dedicated tool—
+
+### **Shortcut-to-.app Converter**
+
+This helper script takes your **manually created .lnk shortcuts** and converts them into a reusable dynamic `.app` package file. Instead of writing JSON by hand, you simply create shortcuts once, run the converter, and the tool generates a portable `.app` definition that works anywhere. This makes it effortless to migrate apps, replicate configurations, or build `.app` packages for all your portable tools.
+
+Whether you're maintaining a large portable apps collection or just want reliable Start Menu shortcuts, this project provides a seamless, flexible, and time-saving solution for everyone.
+
 
 ***
 
@@ -20,16 +41,6 @@ This script automates the management of portable applications by scanning a desi
 <p align="center">
 	<img width="686" height="553" alt="image" src="https://github.com/user-attachments/assets/4881e8ad-e3ea-4331-b386-e54bff8266b0" />
 </p>
-***
-
-## Highlight Features
-
-* **JSON-Based Specification:** Uses a standard **`.app` JSON file** as a specification marker to define each portable application and its shortcut metadata.
-* **Dynamic Path Resolution:** All generated shortcuts are dynamic, ensuring they remain valid and functional even if the portable application folder is **moved to a new drive or system**.
-* **Intelligent Syncing:** The script scans your local portable apps and checks the Windows Start Menu and installed applications, providing **visual status indicators** (Installed, Shortcut OK, Shortcut Modified, Missing).
-* **Full UI Management:** Applications are managed through a comprehensive **WinForms GUI** featuring a TreeView, filtering controls, a details panel, and immediate action buttons.
-* **Core Actions:** Supports **adding/updating shortcuts**, **removing obsolete shortcuts**, and **generating new `.app` definition files** for newly added portable apps.
-* **Clean Architecture:** Code leverages PowerShell functions for **directory scanning**, **JSON handling**, and **UI event management**, promoting separation of concerns and maintainability.
 
 ***
 
